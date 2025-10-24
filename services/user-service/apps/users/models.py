@@ -91,7 +91,7 @@ class UserProfile(models.Model):
         related_name='profile'
     )
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    bio = models.TextField(blank=True)
+    bio = models.TextField(max_length=1000, blank=True)
     is_public = models.BooleanField(default=True)
     timezone = models.CharField(max_length=50, blank=True)
     streak_visibility = models.BooleanField(default=True)
