@@ -5,6 +5,19 @@ from django.utils import timezone
 from django.core.validators import EmailValidator
 from django.conf import settings
 
+class UserProxy:
+    def __init__(self, id, username, email):
+        self.id = id
+        self.username = username
+        self.email = email
+
+    @classmethod
+    def from_api(cls, data):
+        return cls(
+            id=data["id"],
+            username=data.get("username", ""),
+            email=data.get("email", ""),
+        )
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
