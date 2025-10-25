@@ -2,6 +2,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from apps.users.models import User, UserProfile
 from apps.users.forms import RegisterForm, ProfileForm
+import urllib.parse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,13 @@ def get_profile(request):
     if request.method == 'GET':
         user_id = request.GET.get('user_id')
         if not user_id:
+            logger.error("User ID not provided")
             return JsonResponse({'error': 'User ID required'}, status=400)
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            logger.error(f"Invalid user_id: {user_id}")
+            return JsonResponse({'error': 'Invalid user ID'}, status=400)
         user = get_object_or_404(User, id=user_id)
         profile = user.profile
         return JsonResponse({
@@ -78,14 +85,30 @@ def get_profile_detail(request, pk):
 
 def update_profile(request):
     if request.method == 'PUT':
-        user_id = request.POST.get('user_id')
+        data = request.POST
+        logger.debug(f"Received PUT data (POST): {data}")
+        if not data:
+            try:
+                raw_data = request.body.decode('utf-8')
+                data = urllib.parse.parse_qs(raw_data)
+                data = {k: v[0] for k, v in data.items() if v}
+                logger.debug(f"Parsed body data: {data}")
+            except Exception as e:
+                logger.error(f"Failed to parse request.body: {e}")
+                return JsonResponse({'error': 'Invalid data format'}, status=400)
+
+        user_id = data.get('user_id')
         if not user_id:
             logger.error("User ID not provided")
             return JsonResponse({'error': 'User ID required'}, status=400)
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            logger.error(f"Invalid user_id: {user_id}")
+            return JsonResponse({'error': 'Invalid user ID'}, status=400)
         user = get_object_or_404(User, id=user_id)
         profile = user.profile
-        logger.debug(f"Received data: {request.POST}")
-        form = ProfileForm(request.POST, request.FILES, instance=profile)
+        form = ProfileForm(data, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
             logger.info(f"Profile updated for user: {user.email}")
@@ -96,6 +119,11 @@ def update_profile(request):
 
 def delete_user(request, pk):
     if request.method == 'DELETE':
+        try:
+            pk = int(pk)
+        except ValueError:
+            logger.error(f"Invalid pk: {pk}")
+            return JsonResponse({'error': 'Invalid user ID'}, status=400)
         user = get_object_or_404(User, id=pk)
         user.delete()
         logger.info(f"User deleted: {user.email}")
@@ -118,28 +146,23 @@ def set_role(request):
         if not admin.is_staff and not admin.is_superuser:
             logger.error(f"User {admin.email} is not staff or superuser")
             return JsonResponse({'error': 'Forbidden'}, status=403)
-        target_user_id = request.POST.get('user_id')
-        try:
-            target_user_id = int(target_user_id)
-        except ValueError:
-            logger.error(f"Invalid user_id: {target_user_id}")
-            return JsonResponse({'error': 'Invalid user ID'}, status=400)
+        user_id = request.POST.get('user_id')
         role = request.POST.get('role')
+        if not user_id or not role:
+            logger.error(f"Missing user_id or role: user_id={user_id}, role={role}")
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
         try:
-            target_user = User.objects.get(id=target_user_id)
-            if role == 'freelancer':
-                target_user.is_freelancer = True
-            elif role == 'seller':
-                target_user.is_seller = True
-            elif role == 'moderator':
-                target_user.is_moderator = True
-            else:
-                logger.error(f"Invalid role: {role}")
-                return JsonResponse({'error': 'Invalid role'}, status=400)
-            target_user.save()
-            logger.info(f"Role {role} set for user: {target_user.email}")
-            return JsonResponse({'status': 'role_updated'}, status=200)
-        except User.DoesNotExist:
-            logger.error(f"User ID {target_user_id} not found")
-            return JsonResponse({'error': 'User not found'}, status=404)
+            user_id = int(user_id)
+        except ValueError:
+            logger.error(f"Invalid user_id: {user_id}")
+            return JsonResponse({'error': 'Invalid user ID'}, status=400)
+        user = get_object_or_404(User, id=user_id)
+        if role not in ['freelancer', 'seller', 'moderator']:
+            logger.error(f"Invalid role: {role}")
+            return JsonResponse({'error': 'Invalid role'}, status=400)
+        user.is_freelancer = user.is_seller = user.is_moderator = False
+        setattr(user, f'is_{role}', True)
+        user.save()
+        logger.info(f"Role {role} set for user: {user.email}")
+        return JsonResponse({'status': 'role_updated'}, status=200)
     return JsonResponse({'error': 'Method not allowed'}, status=405)
