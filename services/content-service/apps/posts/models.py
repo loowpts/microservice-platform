@@ -1,10 +1,9 @@
 from django.db import models
-from apps.content.models import Channel
 from django.utils.text import slugify
 
 
 class Post(models.Model):
-    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='posts')
+    channel = models.ForeignKey('content.Channel', on_delete=models.CASCADE, related_name='posts')
     author_id = models.IntegerField(db_index=True)
     title = models.CharField(max_length=200, unique=True)
     slug = models.CharField(max_length=200, unique=True)

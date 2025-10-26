@@ -49,6 +49,7 @@ class ChannelSearchForm(forms.Form):
     query = forms.CharField(
         max_length=200,
         required=False,
+        min_length=1,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Поиск каналов...'

@@ -1,9 +1,9 @@
 from django.db import models
-from apps.content.models import Channel, ChannelRole
+from apps.content.models import ChannelRole
 
 
 class ChannelMembership(models.Model):
-    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='memberships')
+    channel = models.ForeignKey('content.Channel', on_delete=models.CASCADE, related_name='memberships')
     user_id = models.IntegerField(db_index=True)
     role = models.CharField(max_length=20, choices=ChannelRole.choices, default=ChannelRole.MEMBER)
     joined_at = models.DateTimeField(auto_now_add=True)
