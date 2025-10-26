@@ -4,11 +4,20 @@ from django.views.decorators.http import require_http_methods
 import json
 import logging
 
+from apps.common.proxies import UserProxy
+from apps.common.api import get_user
 from .models import Channel, Post, Like
-from .forms import ChannelForm, ChannelUpdateForm, PostForm, CommentForm
+from .forms import ChannelForm, ChannelUpdateForm
 
 logger = logging.getLogger(__name__)
 
+
+# @property
+# def get_owner(self):
+#     user_data = get_user(self.owner_id)
+#     if user_data:
+#         return UserProxy.from_api(user_data)
+#     return None
 
 @require_http_methods(['GET'])
 def channel_list(request):
