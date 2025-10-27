@@ -1,9 +1,10 @@
+import json
+import logging
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.views.decorators.http import require_http_methods
-import json
-import logging
+
 
 from apps.common.proxies import UserProxy
 from .models import Channel
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 #     if user_data:
 #         return UserProxy.from_api(user_data)
 #     return None
+
 
 @require_http_methods(['GET'])
 def channel_list(request):
