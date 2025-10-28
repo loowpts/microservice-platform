@@ -1,5 +1,6 @@
 import json
 import logging
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
@@ -263,3 +264,48 @@ def post_delete(request, channel_slug, post_slug):
     }, status=200)
         
     
+@require_http_methods(['GET'])
+def post_search(request):
+    form = PostSearchForm(request.GET or None)
+    
+    if not form.is_valid():
+        return JsonResponse({
+            'success': False,
+            'error': 'Параметр query обязателен',
+            'errors': form.errors
+        }, status=400)
+    
+    query = form.cleaned_data.get('query', '').strip()
+    
+    posts = Post.objects.filter(
+        Q(title__icontains=query) |
+        Q(content__icontains=query)
+    ).order_by('-created_at')[:50]
+    
+    author_ids = [post.author_id for post in posts]
+    authors_data = get_users_batch(author_ids)
+    authors_map = {a['id']: a for a in authors_data}
+
+    data = []
+    for post in posts:
+        author_data = authors_map.get(post.author_id)
+        data.append({
+            'id': post.id,
+            'title': post.title,
+            'slug': post.slug,
+            'content': post.content[:200] + '...' if len(post.content) > 200 else post.content,
+            'author_id': post.author_id,
+            'author': {
+                'id': author_data['id'],
+                'email': author_data.get('email', ''),
+            } if author_data else None
+        })
+        
+    logger.info(f'Post search: query="{query}", results={len(data)}')
+        
+    return JsonResponse({
+        'success': True,
+        'query': query,
+        'count': len(data),
+        'data': data
+    }, status=200)
