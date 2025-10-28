@@ -102,7 +102,7 @@ def member_leave(request, slug):
     if channel.owner_id == request.user.id:
         return JsonResponse({
             'success': False,
-            'message': 'Владелец не может покинуть свой канал.',
+            'error': 'Владелец не может покинуть свой канал.',
             'code': 'owner_cannot_leave',
         }, status=403)
         
@@ -310,4 +310,4 @@ def member_remove(request, slug, user_id):
                 'avatar_url': user_data.get('avatar_url'),
             } if user_data else None,
         }
-    }, status=200)
+    }, status=400)

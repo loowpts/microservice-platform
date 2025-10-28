@@ -79,7 +79,7 @@ def create_channel(request):
                 'slug': channel.slug,
                 'owner': {
                     'id': owner_data['id'],
-                    'username': owner_data['username'],
+                    'email': owner_data.get('email', ''),
                 } if owner_data else None,
             }
         }, status=201)
