@@ -7,7 +7,6 @@ from django.views.decorators.http import require_http_methods
 from apps.common.api import get_user, get_users_batch
 from apps.content.models import Channel, ChannelRole
 from .models import ChannelMembership
-from .forms import ChannelMembershipForm
 
 logger = logging.getLogger(__name__)
 
