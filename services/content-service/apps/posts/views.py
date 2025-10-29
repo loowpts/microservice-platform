@@ -117,7 +117,7 @@ def post_create(request, channel_slug):
     
     return JsonResponse({
         'success': False,
-        'error': 'Ошибка валидации'
+        'error': 'Ошибка валидации',
         'errors': form.errors
     }, status=400)
     
@@ -126,7 +126,7 @@ def post_create(request, channel_slug):
 def post_detail(request, channel_slug, post_slug):
     post = get_object_or_404(
         Post,
-        slug=post_slug,
+        post_slug=post_slug,
         channel__slug=channel_slug
     )
     

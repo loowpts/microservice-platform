@@ -19,6 +19,7 @@ class Post(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
             
     def can_edit(self, user_id, membership_role):
         return self.author_id == user_id or membership_role in ['owner', 'admin']
