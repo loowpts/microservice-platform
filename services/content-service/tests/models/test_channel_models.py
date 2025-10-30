@@ -178,7 +178,7 @@ class TestChannelModel:
         post_ids = [post1.id, post2.id, post3.id]
         
         channel.delete()
-        
+    
         assert not Channel.objects.filter(id=channel.id).exists()
         assert Post.objects.count() == 0
         

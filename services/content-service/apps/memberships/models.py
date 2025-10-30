@@ -13,4 +13,4 @@ class ChannelMembership(models.Model):
         ordering = ['-joined_at']
 
     def __str__(self):
-        return f"{self.user_id} in {self.channel.slug} as {self.role}"
+        return f"{self.user_id} - {self.role} in {self.channel.name}"
