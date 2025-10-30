@@ -50,7 +50,7 @@ def channel_list(request):
         
     return JsonResponse({
         'success': True,
-        'data': len(data),
+        'count': len(data),
         'data': data,
     }, status=200)
 
@@ -181,8 +181,8 @@ def delete_channel(request, slug):
     logger.info(f'Channel: {channel_name} (slug: {slug}) deleted by user - {request.user.id}')
         
     return JsonResponse({
-        'success': False,
-        'message': 'Invalid method',
+        'success': True,
+        'message': f'Канал {channel_name} успешно удален'
     }, status=200)
 
 
