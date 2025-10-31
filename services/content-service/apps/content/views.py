@@ -31,9 +31,12 @@ def channel_list(request):
     
     owner_ids = [ch.owner_id for ch in channels]
     
-    owners_data = get_users_batch(owner_ids)
-    owners_map = {o['id']: o for o in owners_data}
-    
+    if owner_ids:
+        owners_data = get_users_batch(owner_ids)
+        owners_map = {o['id']: o for o in owners_data}
+    else:
+        owners_map = {}
+        
     data = []
     for channel in channels:
         owner_data = owners_map.get(channel.owner_id)
@@ -92,7 +95,13 @@ def create_channel(request):
 
 @require_http_methods(["PUT"])
 def update_channel(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+    try:
+        channel = Channel.objects.get(slug=slug)
+    except Channel.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Канал не найден'
+        }, status=404)
     
     if channel.owner_id != request.user.id:
         return JsonResponse({
@@ -136,7 +145,14 @@ def update_channel(request, slug):
 
 @require_http_methods(['GET'])  
 def channel_detail(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+    
+    try:
+        channel = Channel.objects.get(slug=slug)
+    except Channel.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Канал не найден'
+        }, status=404)
     
     owner_data = get_user(channel.owner_id)
     
@@ -166,7 +182,14 @@ def channel_detail(request, slug):
 
 @require_http_methods(['DELETE'])
 def delete_channel(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+   
+    try:
+        channel = Channel.objects.get(slug=slug)
+    except Channel.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Канал не найден',
+        }, status=404)
     
     if channel.owner_id != request.user.id:
         return JsonResponse({
