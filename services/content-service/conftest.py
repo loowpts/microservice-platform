@@ -177,3 +177,9 @@ def sample_comment_data():
     return {
         'content': 'New comment content'
     }
+
+
+@pytest.fixture(autouse=True)
+def enable_test_middleware(settings):
+    """Включить middleware для тестов"""
+    settings.MIDDLEWARE += ['tests.middleware.TestAuthMiddleware']
