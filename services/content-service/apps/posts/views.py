@@ -126,15 +126,15 @@ def post_create(request, channel_slug):
 def post_detail(request, channel_slug, post_slug):
     post = get_object_or_404(
         Post,
-        post_slug=post_slug,
+        slug=post_slug,
         channel__slug=channel_slug
-    )
+        )
     
     View.objects.create(
         post=post,
         user_id=request.user.id if request.user.is_authenticated else None,
         ip_address=request.META.get('REMOTE_ADDR'),
-        user_agent=request.MET.get('HTTP_USER_AGENT', '')[:512]
+        user_agent=request.META.get('HTTP_USER_AGENT', '')[:512]
     )
     
     author_data = get_user(post.author_id)
@@ -173,7 +173,7 @@ def post_detail(request, channel_slug, post_slug):
 def post_update(request, channel_slug, post_slug):
     post = get_object_or_404(
         Post,
-        post_slug=post_slug,
+        slug=post_slug,
         channel__slug=channel_slug
     )
     
@@ -181,7 +181,7 @@ def post_update(request, channel_slug, post_slug):
         user_id=request.user.id
     ).first()
     
-    if not post.can_edit(request.user.id, membership.role if membership else None)
+    if not post.can_edit(request.user.id, membership.role if membership else None):
         return JsonResponse({
             'success': False,
             'error': 'У вас нет прав для редактирования этого поста.',
@@ -196,7 +196,8 @@ def post_update(request, channel_slug, post_slug):
             'error': 'Невалидный Json'
         }, status=400)
     
-    form = PostForm(data, instance=post)
+    partial = request.method == 'PATCH'
+    form = PostForm(data, instance=post, partial=partial)
     if form.is_valid():
         form.save()
         
@@ -216,8 +217,8 @@ def post_update(request, channel_slug, post_slug):
         
     return JsonResponse({
         'success': False,
-        'error': form.errors
-    }, status=404)
+        'errors': form.errors
+    }, status=400)
 
 
 @require_http_methods(['DELETE'])

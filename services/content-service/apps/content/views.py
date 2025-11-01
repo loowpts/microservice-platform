@@ -47,7 +47,8 @@ def channel_list(request):
             'owner_id': channel.owner_id,
             'owner': {
                 'id': owner_data['id'],
-                'username': owner_data.get('username', ''),
+                'email': owner_data.get('email', ''),
+                'avatar_url': owner_data.get('avatar_url')
             } if owner_data else None,
         })
         

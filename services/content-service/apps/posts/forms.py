@@ -3,40 +3,40 @@ from .models import Post
 
 
 class PostForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        self.partial = kwargs.pop('partial', False)
+        super().__init__(*args, **kwargs)
+        
+        if self.partial:
+            for field in self.fields.values():
+                field.required = False
+
     class Meta:
         model = Post
         fields = ['title', 'content', 'image_url']
-        widgets = {
-            'title': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Введите заголовок поста'
-            }),
-            'content': forms.Textarea(attrs={
-                'class': 'form-control',
-                'placeholder': 'Содержание поста',
-                'rows': 10
-            }),
-            'image_url': forms.URLInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'https://example.com/image.jpg'
-            }),
-        }
-        labels = {
-            'title': 'Заголовок',
-            'content': 'Содержание',
-            'image_url': 'URL изображения',
-        }
     
     def clean_title(self):
-        title = self.cleaned_data.get('title')
+        title = self.cleaned_data.get('title', '').strip()
+        
+        if self.partial and not title:
+            return self.instance.title
+        if not title:
+            raise forms.ValidationError('Заголовок обязателен')
         if len(title) < 5:
             raise forms.ValidationError('Заголовок слишком короткий.')
+        
         return title
     
     def clean_content(self):
-        content = self.cleaned_data.get('content')
+        content = self.cleaned_data.get('content', '').strip()
+        
+        if self.partial and not content:
+            return self.instance.content
+        if not content:
+            raise forms.ValidationError('Содержание поста обязательно')  
         if len(content) < 10:
-            raise forms.ValidationError('Содержание поста должно содержать минимум 10 символов')
+            raise forms.ValidationError('Содержание должно содержать минимум 10 символов')
+        
         return content
 
 
