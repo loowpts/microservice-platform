@@ -9,4 +9,6 @@ urlpatterns = [
     
     path('api/channels/<slug:channel_slug>/posts/', include('apps.posts.urls', namespace='posts')),
     path('api/posts/search/', post_views.post_search, name='post_search'),
+    
+    path('api/channels/<slug:channel_slug>/members/', include('apps.memberships.urls', namespace='memberships')),
 ]
