@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 @require_http_methods(['GET'])
-def member_list(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+def member_list(request, channel_slug):
+    channel = get_object_or_404(Channel, slug=channel_slug)
     
     membership = channel.memberships.all().order_by('-joined_at')
     
@@ -35,8 +35,8 @@ def member_list(request, slug):
             } if user_data else None
         })
         
-    logger.info(f'Member list requested for channel: {slug}, count: {len(data)}')
-    
+    logger.info(f'Member lis annel: {channel_slug}, count: {len(data)}')
+
     return JsonResponse({
         'success': True,
         'channel': {
@@ -50,8 +50,8 @@ def member_list(request, slug):
         
 
 @require_http_methods(['POST'])
-def member_join(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+def member_join(request, channel_slug):
+    channel = get_object_or_404(Channel, slug=channel_slug)
     
     if ChannelMembership.objects.filter(
         channel=channel,
@@ -71,7 +71,7 @@ def member_join(request, slug):
     
     user_data=get_user(request.user.id)
     
-    logger.info(f'{request.user.id} joined channel {channel.name} (slug: {slug})')
+    logger.info(f'{request.user.id} joined channel {channel.name} (slug: {channel_slug})')
     
     return JsonResponse({
         'success': True,
@@ -96,8 +96,8 @@ def member_join(request, slug):
     
 
 @require_http_methods(['DELETE'])
-def member_leave(request, slug):
-    channel = get_object_or_404(Channel, slug=slug)
+def member_leave(request, channel_slug):
+    channel = get_object_or_404(Channel, slug=channel_slug)
     
     if channel.owner_id == request.user.id:
         return JsonResponse({
@@ -115,12 +115,12 @@ def member_leave(request, slug):
         return JsonResponse({
             'success': False,
             'error': 'Вы не являетесь членом этого канала.',
-            'code': 'note_a_member',
+            'code': 'not_a_member',
         }, status=404)
         
     memberships.delete()
     
-    logger.info(f'{request.user.id} left channel {channel.name} (slug: {slug})')
+    logger.info(f'{request.user.id} left channel {channel.name} (slug: {channel_slug})')
     
     return JsonResponse({
         'success': True,
@@ -129,8 +129,8 @@ def member_leave(request, slug):
 
 
 @require_http_methods(['PATCH'])
-def member_update_role(request, slug, user_id):
-    channel = get_object_or_404(Channel, slug=slug)
+def member_update_role(request, channel_slug, user_id):
+    channel = get_object_or_404(Channel, slug=channel_slug)
     
     if channel.owner_id != request.user.id:
         return JsonResponse({
@@ -197,7 +197,7 @@ def member_update_role(request, slug, user_id):
     
     logger.info(
         f'User: {request.user.id} changed role of user {user_id} '
-        f'from {old_role} to {new_role} in channel {slug}'
+        f'from {old_role} to {new_role} in channel {channel_slug}'
     )
     
     return JsonResponse({
@@ -223,8 +223,8 @@ def member_update_role(request, slug, user_id):
     
 
 @require_http_methods(['DELETE'])
-def member_remove(request, slug, user_id):
-    channel = get_object_or_404(Channel, slug=slug)
+def member_remove(request, channel_slug, user_id):
+    channel = get_object_or_404(Channel, slug=channel_slug)
     
     current_user_membership = ChannelMembership.objects.filter(
         channel=channel,
@@ -248,7 +248,7 @@ def member_remove(request, slug, user_id):
     if int(user_id) == request.user.id:
         return JsonResponse({
             'success': False,
-            'error': 'Вы не можете удалить самого себя. Используйте /leave/',
+            'error': 'Вы не можете удалить самого себя.',
             'code': 'cannot_remove_self'
         }, status=403)
         
@@ -288,7 +288,7 @@ def member_remove(request, slug, user_id):
     
     logger.info(
         f'User ({request.user.id}) removed user {removed_user_id}'
-        f'(role {removed_role}) from channel {slug}'
+        f'(role {removed_role}) from channel {channel_slug}'
         )
     
     return JsonResponse({
@@ -310,4 +310,4 @@ def member_remove(request, slug, user_id):
                 'avatar_url': user_data.get('avatar_url'),
             } if user_data else None,
         }
-    }, status=400)
+    }, status=200)
