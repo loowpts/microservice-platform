@@ -10,7 +10,6 @@ from unittest.mock import patch
 @pytest.mark.django_db
 @pytest.mark.views
 class TestCommentListView:
-    """Тесты для GET /api/channels/{slug}/posts/{post_slug}/comments/"""
     
     def setup_method(self):
         self.client = Client()
@@ -47,10 +46,8 @@ class TestCommentListView:
         Моки:
         - get_users_batch
         
-        Подготовка:
-        - Создать 2 корневых комментария
-        - Создать 2 ответа на первый комментарий
         """
+        
         mock_get_users_batch.return_value = [
             {'id': 1, 'email': 'test@example.com', 'avatar_url': 'https://avatar_test.com'},
             {'id': 2, 'email': 'test2@example.com', 'avatar_url': 'https://avatar_test.com'},
@@ -133,9 +130,19 @@ class TestCommentListView:
         Проверяем:
         - Статус 200
         - count = 0
+        
         - data = []
         """
-        pass
+        
+        response = self.client.get(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 200
+        assert data['count'] == 0
+        assert data['data'] == []
     
     @patch('apps.comments.views.get_users_batch')
     def test_list_comments_user_structure(self, mock_get_users_batch):
@@ -150,8 +157,41 @@ class TestCommentListView:
         - get_users_batch возвращает только user_id=1
         
         """
-        pass
-    
+        
+        mock_get_users_batch.return_value = [
+            {'id': 1, 'email': 'test@example.com', 'avatar_url': 'https://avatar_test.com'},
+
+        ]
+        
+        Comment.objects.create(
+            post=self.post,
+            author_id=1,
+            content='First comment'
+        )
+        
+        Comment.objects.create(
+            post=self.post,
+            author_id=999,
+            content='Second comment'
+        )  
+        
+        assert Comment.objects.filter(post=self.post).count() == 2
+        
+        response = self.client.get(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 200
+        
+        comment_1 = next(c for c in data['data'] if c['author_id'] == 1)
+        comment_999 = next(c for c in data['data'] if c['author_id'] == 999)
+        assert set(comment_1['author'].keys()) == {'id', 'email', 'avatar_url'}
+        
+        assert comment_1['author'] is not None
+        assert comment_999['author'] is None
+            
     def test_list_comments_post_not_found(self):
         """
         Тест 4: Пост не найден (404)
@@ -159,13 +199,18 @@ class TestCommentListView:
         Проверяем:
         - Статус 404
         """
-        pass
+        nonexistent_slug = 'nonexistent-post'
+        
+        response = self.client.get(
+            f'/api/channels/{self.channel.slug}/posts/{nonexistent_slug}/comments/'
+        )
+        
+        assert response.status_code == 404
 
 
 @pytest.mark.django_db
 @pytest.mark.views
 class TestCommentCreateView:
-    """Тесты для POST /api/channels/{slug}/posts/{post_slug}/comments/create/"""
     
     def setup_method(self):
         self.client = Client()
@@ -201,8 +246,35 @@ class TestCommentCreateView:
         - get_user
         
         """
-        pass
-    
+        mock_get_user.return_value = {
+            'id': 1,
+            'email': 'test@example.com',
+            'avatar_url': 'https://avatar_test.com'
+        }
+        
+        data = {
+            'content': 'Test comment post'
+        }
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/create/',
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        
+        assert response.status_code == 201
+        assert response_data['success'] is True
+        assert response_data['message'] == 'Комментарий успешно добавлен'
+        assert set(response_data['data'].keys()) == {
+                'id', 'content', 'author_id',
+                'author', 'replies_count', 'created_at'
+            }
+        
+        assert Comment.objects.filter(post=self.post, author_id=1).count() == 1
+                
     def test_create_comment_invalid_json(self):
         """
         Тест 6: Невалидный JSON
@@ -211,7 +283,18 @@ class TestCommentCreateView:
         - Статус 400
         - error = 'Невалидный Json'
         """
-        pass
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/create/',
+            data='none-json',
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        assert response.status_code == 400
+        assert response_data['error'] == 'Невалидный Json'
+        
     
     def test_create_comment_invalid_data(self):
         """
@@ -223,7 +306,24 @@ class TestCommentCreateView:
         - Comment НЕ создался
         
         """
-        pass
+        data = {
+            'title': 'invalid'
+        }
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/create/',
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        assert response.status_code == 400
+        assert response_data['success'] is False
+        assert Comment.objects.filter(post=self.post).count() == 0
+        
+        assert 'errors' in response_data
+        assert 'content' in response_data['errors']
     
     def test_create_comment_post_not_found(self):
         """
@@ -232,13 +332,19 @@ class TestCommentCreateView:
         Проверяем:
         - Статус 404
         """
-        pass
+        
+        nonexistent_slug = 'nonexistent-post'
+        
+        assert not Post.objects.filter(slug=nonexistent_slug)
+        
+        response = self.client.get(f'/api/channels/{self.channel.slug}/posts/{nonexistent_slug}/comments/')
+        
+        assert response.status_code == 404
 
 
 @pytest.mark.django_db
 @pytest.mark.views
 class TestCommentUpdateView:
-    """Тесты для PATCH /api/channels/{slug}/posts/{post_slug}/comments/{comment_id}/"""
     
     def setup_method(self):
         self.client = Client()
@@ -274,7 +380,24 @@ class TestCommentUpdateView:
         - content изменился в БД
         
         """
-        pass
+        update_data = {
+            'content': 'Update comment post'
+        }
+        
+        response = self.client.patch(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/',
+            data=json.dumps(update_data),
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        assert response.status_code == 200
+        assert response_data['success'] is True
+        assert response_data['message'] == 'Комментарий обновлен.'
+        
+        self.comment.refresh_from_db()
+        assert self.comment.content == 'Update comment post'
     
     def test_update_comment_not_author(self):
         """
@@ -286,7 +409,24 @@ class TestCommentUpdateView:
         - content НЕ изменился
         
         """
-        pass
+        self.comment.author_id = 999
+        self.comment.save()
+        
+        update_data = {
+            'content': 'Update comment post'
+        }
+        
+        response = self.client.patch(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/',
+            data=json.dumps(update_data),
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        assert response.status_code == 403
+        assert response_data['code'] == 'permission_denied'
+        assert Comment.objects.filter(post=self.post, content='Original content').exists()
     
     def test_update_comment_invalid_json(self):
         """
@@ -296,13 +436,22 @@ class TestCommentUpdateView:
         - Статус 400
         - error = 'Невалидный Json'
         """
-        pass
+
+        response = self.client.patch(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/',
+            data='none',
+            content_type='application/json'
+        )
+        
+        response_data = json.loads(response.content)
+        
+        assert response.status_code == 400
+        assert response_data['error'] == 'Невалидный Json'
 
 
 @pytest.mark.django_db
 @pytest.mark.views
 class TestCommentDeleteView:
-    """Тесты для DELETE /api/channels/{slug}/posts/{post_slug}/comments/{comment_id}/delete/"""
     
     def setup_method(self):
         self.client = Client()
@@ -338,7 +487,18 @@ class TestCommentDeleteView:
         - Comment удалился из БД
         
         """
-        pass
+        
+        response = self.client.delete(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/delete/'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 200
+        assert data['success'] is True
+        assert data['message'] == 'Комментарий удален'
+        
+        assert not Comment.objects.filter(post=self.post).exists()
     
     def test_delete_comment_not_author(self):
         """
@@ -350,7 +510,21 @@ class TestCommentDeleteView:
         - Comment НЕ удалился
         
         """
-        pass
+        
+        self.comment.author_id = 999
+        self.comment.save()
+        
+        response = self.client.delete(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/delete/'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 403
+        assert data['code'] == 'permission_denied'
+        
+        assert Comment.objects.filter(post=self.post).exists()
+        
     
     def test_delete_comment_not_found(self):
         """
@@ -359,13 +533,16 @@ class TestCommentDeleteView:
         Проверяем:
         - Статус 404
         """
-        pass
+        
+        response = self.client.delete(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/31/delete/'
+        )
 
+        assert response.status_code == 404
 
 @pytest.mark.django_db
 @pytest.mark.views
 class TestCommentReplyView:
-    """Тесты для POST /api/channels/{slug}/posts/{post_slug}/comments/{comment_id}/reply/"""
     
     def setup_method(self):
         self.client = Client()
@@ -407,7 +584,47 @@ class TestCommentReplyView:
         - get_user
         
         """
-        pass
+        
+        mock_get_user.return_value = {
+            'id': 1,
+            'email': 'test@example.com',
+            'avatar_url': 'https://avatar.com'
+        }
+        
+        assert self.comment.replies.count() == 0
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/reply/',
+            data=json.dumps({'content': 'Test content'}),
+            content_type='application/json'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 201
+        assert data['success'] is True
+        assert data['message'] == 'Ответ добавлен'
+        
+        assert set(data['data'].keys()) == {
+            'id', 'content', 'author_id', 'author', 'parent_id', 'created_at'
+            }
+        
+        assert data['data']['author'] is not None
+        assert set(data['data']['author'].keys()) == {'id', 'email', 'avatar_url'}
+        
+        assert Comment.objects.filter(
+            parent=self.comment,
+            content='Test content'
+        ).exists()
+        
+        assert self.comment.replies.count() == 1
+        
+        reply = Comment.objects.get(parent=self.comment)
+        assert reply.parent == self.comment
+        assert reply.post == self.post
+        assert reply.author_id == 1
+        
+        mock_get_user.assert_called_once_with(1)
     
     def test_reply_to_reply_forbidden(self):
         """
@@ -419,21 +636,68 @@ class TestCommentReplyView:
         - code = 'invalid_parent'
         - Comment НЕ создался
         
+        Подготовка:
+        - Создать ответ на комментарий
+        - Попытаться ответить на этот ответ
         """
-        pass
-    
-    def test_reply_comment_invalid_data(self):
-        """
-        Тест 17: Невалидные данные
         
-        Проверяем:
-        - Статус 400
-        - errors присутствуют
+        first_reply = Comment.objects.create(
+            post=self.post,
+            author_id=2,
+            content='First reply',
+            parent=self.comment
+        )
         
-        - content слишком короткий
-        """
-        pass
-    
+        assert first_reply.parent == self.comment
+        
+        initial_count = Comment.objects.count()
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{first_reply.id}/reply/',
+            data=json.dumps({'content': 'Reply to reply'}),
+            content_type='application/json'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 400
+        assert data['success'] is False
+        assert data['error'] == 'Нельзя отвечать на ответ'
+        assert data['code'] == 'invalid_parent'
+        
+        assert Comment.objects.count() == initial_count
+
+    @patch('apps.comments.views.get_user')
+    def test_reply_comment_invalid_data(self, mock_get_user):
+        """Тест 17: Невалидные данные"""
+        
+        mock_get_user.return_value = {
+            'id': 1,
+            'email': 'test@example.com',
+            'avatar_url': 'https://avatar.com'
+        }
+        
+        initial_count = Comment.objects.count()
+        
+        invalid_data = {
+            'content': 'a'
+        }
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{self.comment.id}/reply/',
+            data=json.dumps(invalid_data),
+            content_type='application/json'
+        )
+        
+        data = json.loads(response.content)
+        
+        assert response.status_code == 400
+        assert data['success'] is False
+        assert 'errors' in data
+        assert 'content' in data['errors']
+        assert Comment.objects.count() == initial_count
+
+
     def test_reply_comment_not_found(self):
         """
         Тест 18: Родительский комментарий не найден (404)
@@ -441,4 +705,15 @@ class TestCommentReplyView:
         Проверяем:
         - Статус 404
         """
-        pass
+        
+        nonexistent_comment_id = 3433
+        
+        assert not Comment.objects.filter(id=nonexistent_comment_id).exists()
+        
+        response = self.client.post(
+            f'/api/channels/{self.channel.slug}/posts/{self.post.slug}/comments/{nonexistent_comment_id}/reply/',
+            data=json.dumps({'content': 'Test reply'}),
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 404
