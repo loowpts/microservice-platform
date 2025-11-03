@@ -53,7 +53,7 @@ def post_like_toggle(request, channel_slug, post_slug):
 
     return JsonResponse({
         'success': True,
-        'message': 'Лайк успешно поставлен.',
+        'message': 'Лайк поставлен',
         'is_liked': True,
         'data': {
             'id': like.id,
