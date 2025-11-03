@@ -34,7 +34,7 @@ def comment_create(request, post_slug, channel_slug):
     if not form.is_valid():
         return JsonResponse({
             'success': False,
-            'error': form.errors
+            'errors': form.errors
         }, status=400)
     
     comment = form.save(commit=False)
@@ -174,7 +174,7 @@ def comment_reply(request, comment_id, post_slug, channel_slug):
     if not form.is_valid():
         return JsonResponse({
             'success': False,
-            'error': form.errors
+            'errors': form.errors
         }, status=400)
     
     reply = form.save(commit=False)

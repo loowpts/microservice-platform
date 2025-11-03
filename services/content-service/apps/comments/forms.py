@@ -41,3 +41,11 @@ class CommentReplyForm(forms.ModelForm):
         labels = {
             'content': '',
         }
+        
+    def clean_content(self):
+        content = self.cleaned_data.get('content')
+        if len(content) < 2:
+            raise forms.ValidationError('Комментарий слишком короткий.')
+        if len(content) > 1000:
+            raise forms.ValidationError('Комментарий не может быть длиннее 1000 символов.')
+        return content
