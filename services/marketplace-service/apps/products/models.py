@@ -9,7 +9,7 @@ class CONDITION_CHOICES(models.TextChoices):
 class STATUS_CHOICES(models.TextChoices):
     ACTIVE = 'active', 'Активен'
     SOLD = 'sold', 'Продан'
-    archived = 'archived', 'В архиве'
+    ARCHIVED = 'archived', 'В архиве'
     DRAFT = 'draft', 'Черновик'
 
 class Product(models.Model):
