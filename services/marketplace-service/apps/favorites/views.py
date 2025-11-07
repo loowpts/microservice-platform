@@ -7,8 +7,7 @@ from django.db.models import Q
 
 from .models import Favorite
 from apps.products.models import Product, ProductImage
-from apps.categories.models import Category
-from apps.common.api import get_user, get_users_batch
+from apps.common.api import get_users_batch
 
 
 logger = logging.getLogger(__name__)
@@ -23,10 +22,10 @@ def favorite_list(request):
         'product__category'
     )
     
-    products_ids = [f.product for f in favorites]
+    product_ids = [f.product.id for f in favorites]
     
     images = ProductImage.objects.filter(
-        product_id__in=products_ids
+        product_id__in=product_ids
     ).order_by('product_id', 'order')
     
     images_map = {}
@@ -71,10 +70,43 @@ def favorite_list(request):
             'added_at': product.created_at.isoformat()
         }
 
-    data.append(favorite_data)
+        data.append(favorite_data)
     
     return JsonResponse({
         'success': True,
         'count': len(data),
         'data': data
+    }, status=200)
+
+
+@require_http_methods(['POST'])
+def favorite_toggle(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    
+    favorite = Favorite.objects.filter(
+        user_id=request.user.id,
+        product=product
+    ).first()
+    
+    if favorite:
+        favorite.delete()
+        action = 'removed'
+        message = 'Товар удален из избранного'
+    else:
+        Favorite.objects.create(
+            user_id=request.user.id,
+            product=product
+        )
+        
+        action = 'added'
+        message = 'Товар добавлен в избранное'
+        
+    
+    logger.info(f'Favorite {action}: product {product.id} by user {request.user.id}')
+    
+    
+    return JsonResponse({
+        'success': True,
+        'action': action,
+        'message': message
     }, status=200)

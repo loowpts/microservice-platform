@@ -6,5 +6,6 @@ urlpatterns = [
     
     path('api/products', include('apps.products.urls', namespace='products')),
     path('api/categories', include('apps.categories.urls', namespace='categories')),
+    path('api/favorites/', include('apps.favorites.urls')),
     
 ]
