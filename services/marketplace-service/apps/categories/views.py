@@ -35,12 +35,12 @@ def category_detail(request, slug):
     subcategories = category.subcategories.all().order_by('order')
     
     subcategories_data = []
-    for subcategorie in subcategories:
+    for subcategory in subcategories:
         subcategories_data.append({
-            'id': subcategorie.id,
-            'name': subcategorie.name,
-            'slug': subcategorie.slug,
-            'icon': subcategorie.icon if subcategorie.icon else None
+            'id': subcategory.id,
+            'name': subcategory.name,
+            'slug': subcategory.slug,
+            'icon': subcategory.icon if subcategory.icon else None
         })
     
     data = {
