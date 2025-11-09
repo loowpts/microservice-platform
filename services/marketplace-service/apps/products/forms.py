@@ -7,32 +7,31 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = [
             'title', 'description', 'price', 'old_price',
-            'old_price', 'category', 'condition', 'city',
-            'quantity' 
+            'category', 'condition', 'city', 'quantity' 
             ]
     
     def clean_price(self):
         price = self.cleaned_data.get('price')
-        if price < 0:
+        if price <= 0:
             raise forms.ValidationError('Цена должна быть больше 0')
-        
         return price
     
     def clean_title(self):
         title = self.cleaned_data.get('title')
         
-        if len(title) >= 5:
+        if len(title) < 5:
             raise forms.ValidationError('Название слишком короткое.')
         return title
     
     def clean(self):
+        cleaned_data = super().clean()
         old_price = self.cleaned_data.get('old_price')
         price = self.cleaned_data.get('price')
 
         if old_price:
             if old_price <= price:
                 raise forms.ValidationError('Старая цена должна быть больше новой')
-        return old_price
+        return cleaned_data
 
 class ProductImageForm(forms.ModelForm):
     class Meta:
