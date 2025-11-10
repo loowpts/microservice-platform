@@ -1,13 +1,10 @@
-import json
 import logging
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 
-from apps.products.models import Product, ProductImage
-from apps.categories.models import Category
-from apps.common.api import get_user, get_users_batch
+from apps.products.models import Product
+from apps.common.api import get_users_batch
 
 
 logger = logging.getLogger(__name__)
