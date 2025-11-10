@@ -23,9 +23,10 @@ class Category(models.Model):
         if not self.slug:
             base_slug = slugify(self.name)
             slug = base_slug
+            slug = base_slug.replace('_', '-')
             counter = 1
             while Category.objects.filter(slug=slug).exists():
-                slug=f'{base_slug}-{counter}'
+                slug=f'{base_slug}-{counter}'.replace('_', '-')
                 counter += 1
             self.slug=slug
         super().save(*args, **kwargs)
