@@ -1,7 +1,7 @@
 import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.db.models import Q
+from django.db.models import Q, Case, When, Value, IntegerField
 
 from apps.products.models import Product
 from apps.common.api import get_users_batch
@@ -18,21 +18,55 @@ def product_search(request):
     price_max = request.GET.get('price_max')
     condition = request.GET.get('condition')
     
-    products = Product.objects.filter(
-        status='active'
-        ).order_by('-created_at')
-
     if not q:
         return JsonResponse({
             'success': False,
-            'error': 'Параметр q обязателен'
+            'error': 'Параметр q обязателен',
+            'code': 'missing_query'
         }, status=400)
         
     if len(q) < 2:
         return JsonResponse({
             'success': False,
-            'error': 'Запрос должен содержать минимум 2 символа'
+            'error': 'Запрос должен содержать минимум 2 символа',
+            'code': 'query_too_short'
         }, status=400)
+    
+    try:
+        if price_min:
+            price_min = float(price_min)
+            if price_min < 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Минимальная цена не может быть отрицательной',
+                    'code': 'invalid_price_min'
+                }, status=400)
+        if price_max:
+            price_max = float(price_max)
+            if price_max < 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Максимальная цена не может быть отрицательной',
+                    'code': 'invalid_price_max'
+                }, status=400)
+                
+        if price_min and price_max and price_min > price_max:
+            return JsonResponse({
+                'success': False,
+                'error': 'Минимальная цена не может быть больше максимальной',
+                'code': 'invalid_price_range'
+            }, status=400)
+            
+    except (ValueError, TypeError):
+        return JsonResponse({
+            'success': False,
+            'error': 'Неверный формат цены',
+            'code': 'invalid_price_format'
+        }, status=400)
+    
+    products = Product.objects.filter(
+        status='active'
+        ).order_by('-created_at')
         
     products = products.filter(
         Q(title__icontains=q) | Q(description__icontains=q)
@@ -49,17 +83,26 @@ def product_search(request):
     if condition:
         products = products.filter(condition=condition)
     
+    products = products.annotate(
+        title_match=Case(
+            When(title__icontains=q, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField()
+        )
+    ).order_by('title_match', '-created_at')
+    
     products = products.select_related('category').prefetch_related('additional_images')
     
-    products = sorted(
-        products,
-        key=lambda p :(
-            (q.lower() not in p.title.lower()),
-            -p.created_at.timestamp()
-        )
-    )
+    if not products.exists():
+        logger.info(f'Search performed: "{q}" - found 0 results')
+        return JsonResponse({
+            'success': True,
+            'query': q,
+            'count': 0,
+            'data': []
+        })
     
-    seller_ids = list({p.seller_id for p in products})
+    seller_ids = list(products.values_list('seller_id', flat=True).distinct())
     sellers = get_users_batch(seller_ids)
     sellers_map = {u['id']: u for u in sellers}
     
@@ -69,9 +112,16 @@ def product_search(request):
         image_url = None
         
         if hasattr(product, 'main_image') and product.main_image:
-            image_url = product.main_image.url
-        elif hasattr(product, 'additional_images') and product.additional_images.exists():
-            image_url = product.additional_images.first().image.url
+            try:
+                image_url = product.main_image.url
+            except (AttributeError, ValueError):
+                image_url = None
+        
+        if not image_url and product.additional_images.exists():
+            try:
+                image_url = product.additional_images.first().image.url
+            except (AttributeError, ValueError):
+                image_url = None
         
         data.append({
             'id': product.id,
@@ -94,8 +144,7 @@ def product_search(request):
             'created_at': product.created_at.isoformat()
         })
     
-    
-    logger.info(f'Search performed: {q} - found {len(data)} results')
+    logger.info(f'Search performed: "{q}" - found {len(data)} results')
     
     return JsonResponse({
         'success': True,
@@ -103,4 +152,3 @@ def product_search(request):
         'count': len(data),
         'data': data
     })
-    
