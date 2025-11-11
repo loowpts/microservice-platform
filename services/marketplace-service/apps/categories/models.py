@@ -21,14 +21,15 @@ class Category(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = pytils_slugify(self.name)
+            
+            name_with_dashes = self.name.replace('_', '-')
+            base_slug = pytils_slugify(name_with_dashes)
             slug = base_slug
-            slug = base_slug.replace('_', '-')
             counter = 1
             while Category.objects.filter(slug=slug).exists():
-                slug=f'{base_slug}-{counter}'.replace('_', '-')
+                slug = f'{base_slug}-{counter}'
                 counter += 1
-            self.slug=slug
+            self.slug = slug
         super().save(*args, **kwargs)
     
     def __str__(self):

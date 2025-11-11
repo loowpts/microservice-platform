@@ -250,7 +250,7 @@ def product_update(request, slug):
             'error': 'Невалидный Json'
         }, status=400)
     
-    form = ProductForm(data, instance=product, partial=True)
+    form = ProductForm(data, instance=product)
 
     if not form.is_valid():
         return JsonResponse({
