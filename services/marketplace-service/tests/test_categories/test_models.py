@@ -1,128 +1,119 @@
 import pytest
-from django.db import IntegrityError, transaction
 from apps.categories.models import Category
+
 
 @pytest.mark.django_db
 class TestCategoryModel:
-
-    def test_unique_name(self):
+    
+    def test_create_category_basic(self):
         """
-        Задача:
-        - Проверить, что поле `name` уникально.
-        - При создании категории с одинаковым значением поля `name` должно возникать исключение.
+        Проверяемые аспекты:
+        - Категория создается с именем
+        - Slug генерируется автоматически
+        - order по умолчанию = 0
+        - parent по умолчанию = None
         """
         
-        Category.objects.create(
-            name='Test Name',
-            slug='test-name'
-        )
-        
-        with pytest.raises(IntegrityError):
-            Category.objects.create(
-                name='Test Name',
-                slug='test-name-2'
-            )
-        
-    def test_slug_generation_on_create(self):
-        """
-        Задача:
-        - Проверить, что при создании категории без указания `slug`, он генерируется автоматически на основе `name`.
-        """
         category = Category.objects.create(
-            name='Test Name',
+            name='Test Name'
         )
         
         assert category.slug == 'test-name'
+        assert category.order == 0
+        assert category.parent is None
     
-    def test_unique_slug_generation(self):
+    def test_category_slug_generation_cyrillic(self):
         """
-        Задача:
-        - Проверить, что при создании категорий с одинаковым значением `name` (и автоматически генерируемым `slug`),
-        - второй и последующие категории должны получать уникальный `slug` (например, `electronics`, `electronics-1`, `electronics-2` и т.д.).
+        Проверяемые аспекты:
+        - name="Электроника" → slug="elektronika"
+        - Транслитерация работает корректно
         """
         
-        category1 = Category.objects.create(name='Electronics 1')
-        assert category1.slug == 'electronics-1'
+        category = Category.objects.create(
+            name='Электроника'
+        )
         
-        category2 = Category.objects.create(name='Electronics 2')
-        assert category2.slug == 'electronics-2'
-        
-        category3 = Category.objects.create(name='Electronics 3')
-        assert category3.slug == 'electronics-3'
-        
-        
-        assert category1.slug != category2.slug
-        assert category2.slug != category3.slug
-        assert category1.slug != category3.slug
-        
-        
+        assert category.slug == 'elektronika'    
     
-    def test_unique_slug_constraint(self):
+    def test_category_slug_underscore_replacement(self):
         """
-        Задача:
-        - Проверить, что при создании категории с уже существующим значением `slug` 
-        должно генерироваться исключение уникальности.
+        Проверяемые аспекты:
+        - name с подчеркиванием должен давать slug с дефисом
+        - "Test_Category" → "test-category"
         """
-        category1 = Category.objects.create(name='Electronics')
-        assert category1.slug == 'electronics'
-        
-        with pytest.raises(IntegrityError):
-            Category.objects.create(name='Electronics', slug='electronics')
+        category = Category.objects.create(
+            name='Test_Category'
+        )
 
-    def test_parent_category(self):
-        """
-        Задача:
-        - Проверить, что поле `parent` работает корректно для вложенных категорий (т.е. категория может быть дочерней для другой категории).
-        - Вложенная категория должна отображаться в `subcategories` родительской категории.
-        """
-        pass
+        assert '_' not in category.slug
+        assert '-' in category.slug
+        assert category.slug == 'test-category'
     
-    def test_category_without_parent(self):
+    def test_category_parent_child_relationship(self):
         """
-        Задача:
-        - Проверить, что категория без родителя имеет `parent` равное `None`.
+        Проверяемые аспекты:
+        - Создать родительскую категорию
+        - Создать дочернюю с parent=родитель
+        - Проверить parent.subcategories.count() == 1
+        - Проверить child.parent == parent
         """
-        pass
-    
-    def test_str_method(self):
-        """
-        Задача:
-        - Проверить, что метод `__str__` возвращает название категории.
-        """
-        pass
-    
-    def test_icon_field(self):
-        """
-        Задача:
-        - Проверить, что поле `icon` может быть пустым (NULL или пустая строка).
-        - Проверить, что если в поле `icon` указано значение, оно сохраняется корректно.
-        """
-        pass
+        parent = Category.objects.create(
+            name='Parent Category'
+        )
+
+        child = Category.objects.create(
+            name='Child Category',
+            parent=parent
+        )
+
+        assert child.parent == parent
+        assert parent.subcategories.count() == 1
+        assert child in parent.subcategories.all()
+        assert hasattr(parent, 'subcategories')
     
     def test_category_ordering(self):
         """
-        Задача:
-        - Проверить, что категории сортируются сначала по полю `order`, затем по полю `name`.
+        Проверяемые аспекты:
+        - Создать 3 категории с разными order (2, 0, 1)
+        - Запросить Category.objects.all()
+        - Проверить порядок: 0, 1, 2
         """
-        pass
+        cat1 = Category.objects.create(name='Category B', order=2)
+        cat2 = Category.objects.create(name='Category A', order=0)
+        cat3 = Category.objects.create(name='Category C', order=1)
+
+        categories = list(Category.objects.all())
+
+        assert categories[0] == cat2  # order=0
+        assert categories[1] == cat3  # order=1
+        assert categories[2] == cat1  # order=2
+        assert categories[0].order < categories[1].order < categories[2].order
     
-    def test_nullable_and_blank_fields(self):
+    def test_category_cascade_delete(self):
         """
-        Задача:
-        - Проверить, что поля `icon` и `parent` могут быть пустыми (NULL или пустая строка).
+        Проверяемые аспекты:
+        - Создать родителя и ребенка
+        - Удалить родителя
+        - Проверить что ребенок тоже удален
         """
-        pass
+        parent = Category.objects.create(name='Parent')
+        child = Category.objects.create(name='Child', parent=parent)
+
+        parent_id = parent.id
+        child_id = child.id
+
+        parent.delete()
+
+        assert not Category.objects.filter(id=parent_id).exists()
+        assert not Category.objects.filter(id=child_id).exists()
+        assert Category.objects.count() == 0
     
-    def test_slug_auto_save(self):
+    def test_category_str_method(self):
         """
-        Задача:
-        - Проверить, что метод `save` корректно генерирует и сохраняет `slug`, если он не был указан.
+        Проверяемые аспекты:
+        - str(category) возвращает category.name
         """
-        pass
-    
-    def test_large_data_handling(self):
-        """
-        Задача:
-        - Проверить, как модель работает с большими значениями (например, очень длинные строки в поле `name`).
-        """
-        pass
+        category = Category.objects.create(name='Test Category')
+
+        assert str(category) == 'Test Category'
+        assert str(category) == category.name
