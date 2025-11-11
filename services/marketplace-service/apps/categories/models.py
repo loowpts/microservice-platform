@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
-
+from pytils.translit import slugify as pytils_slugify
 
 class Category(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -21,7 +21,7 @@ class Category(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.slug:
-            base_slug = slugify(self.name)
+            base_slug = pytils_slugify(self.name)
             slug = base_slug
             slug = base_slug.replace('_', '-')
             counter = 1
