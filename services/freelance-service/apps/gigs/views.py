@@ -256,7 +256,7 @@ def gig_update(request, slug):
     if not form.is_valid():
         return JsonResponse({
             'success': False,
-            'error': form.errors,
+            'errors': form.errors,
         }, status=400)
     
     form.save()
@@ -423,7 +423,7 @@ def package_create(request, slug):
     if not form.is_valid():
         return JsonResponse({
             'success': False,
-            'error': form.errors
+            'errors': form.errors
         }, status=400)
     
     package_type = form.cleaned_data.get("package_type")
@@ -490,7 +490,7 @@ def package_update(request, slug, package_id):
     if not form.is_valid():
         return JsonResponse({
             'success': False,
-            'error': form.errors
+            'errors': form.errors
         }, status=400)
         
     form.save()
