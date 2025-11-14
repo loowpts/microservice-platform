@@ -7,7 +7,7 @@ from .models import Gig, GigPackage
 class GigForm(forms.ModelForm):
     class Meta:
         model = Gig
-        fields = ['category', 'subcategory', 'title', 'description', 'main_image']
+        fields = ['category', 'title', 'description', 'main_image']
 
     def clean_title(self):
         title = self.cleaned_data.get('title')
