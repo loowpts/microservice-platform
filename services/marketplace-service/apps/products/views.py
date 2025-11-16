@@ -7,7 +7,6 @@ from django.db.models import Q
 
 
 from .models import Product, ProductImage
-from apps.categories.models import Category
 from apps.common.api import get_user, get_users_batch
 from .forms import ProductForm
 
