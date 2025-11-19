@@ -12,5 +12,5 @@ urlpatterns = [
     path('api/portfolio/', include('apps.portfolio.urls', namespace='portfolio')),
     path('api/proposals/', include('apps.proposals.urls', namespace='proposals')),
     path('api/reviews/', include('apps.reviews.urls', namespace='reviews')),
-    # path('api/search/', include('apps.search.urls', namespace='search')),
+    path('api/search/', include('apps.search.urls', namespace='search')),
 ]
