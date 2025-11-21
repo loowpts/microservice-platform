@@ -232,10 +232,8 @@ def login(request):
         }
     }, status=200)
 
-
 @require_http_methods(['POST'])
 def logout(request):
-    
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
@@ -248,23 +246,29 @@ def logout(request):
     if not refresh_token:
         return JsonResponse({
             'success': False,
-            'error': 'refresh_token are required'
+            'error': 'refresh_token is required'
         }, status=400)
     
     try:
         token = RefreshToken(refresh_token)
-        token.blacklist()
-        logger.info('User logged out')
+        
+        try:
+            token.blacklist()
+            logger.info('User logged out (token blacklisted)')
+        except AttributeError:
+            logger.info('User logged out (blacklist not configured)')
+        
         return JsonResponse({
-            'success': True,
+            'status': 'success',
             'message': 'Logged out successfully'
         }, status=200)
+        
     except TokenError as e:
-        logger.error(f"Invalid refresh token during logout: {str(e)}")
-        return JsonResponse({'error': 'Invalid or expired refresh token'}, status=400)
-    except Exception as e:
-        logger.error(f"Error during logout: {str(e)}")
-        return JsonResponse({'error': 'Logout failed'}, status=500)
+        logger.error(f"Invalid refresh token: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid or expired refresh token'
+        }, status=400)
 
 @require_http_methods(['POST'])
 def refresh_token(request):
@@ -282,7 +286,7 @@ def refresh_token(request):
     try:
         token = RefreshToken(refresh_token)
         new_access = str(token.access_token)
-        logger.info(f'Token refreshed: {token}')
+        logger.info('Token refreshed successfully')
         return JsonResponse({
             'success': True,
             'access_token': new_access
@@ -324,6 +328,64 @@ def verify_token(request):
                 'email': user.email,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
+                'role_display': user.profile.role_display(),
+                'is_freelancer': user.is_freelancer,
+                'is_seller': user.is_seller,
+                'is_moderator': user.is_moderator,
             }
+            
         }, status=200)
+    except TokenError as e:
+        logger.error(f"Invalid refresh token: {str(e)}")
+        return JsonResponse({'error': 'Invalid or expired refresh token'}, status=400)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not exist'}, status=404)
+
+
+@require_http_methods(['POST'])
+def get_users_batch(request):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    user_ids = data.get('user_ids', [])
+    if not isinstance(user_ids, list):
+        return JsonResponse({'error': 'user_ids must be a list'}, status=400)
+
+    if not user_ids:
+        return JsonResponse({
+            'success': False,
+            'count': 0,
+            'users': []
+        }, status=200)
+    
+    users = User.objects.filter(id__in=user_ids).select_related('profile')
+    
+    users_data = [
+        {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role_display': user.profile.role_display(),
+            'is_freelancer': user.is_freelancer,
+            'is_seller': user.is_seller,
+            'is_moderator': user.is_moderator,
+        }
+        for user in users
+    ]
+    
+    logger.info(f'Batch request for {len(user_ids)} users, found {len(users_data)}')
+    
+    return JsonResponse({
+        'status': 'success',
+        'count': len(users_data),
+        'users': users_data
+    }, status=200)
+           
         
