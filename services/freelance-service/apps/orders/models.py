@@ -104,5 +104,59 @@ class OrderRequirement(models.Model):
     def __str__(self):
         return f'Requirements for Order #{self.order.id}'
     
+
+class DISPUTE_STATUS_CHOICES(models.TextChoices):
+    OPEN = 'open', 'Открыт'
+    IN_REVIEW = 'in_review', 'На рассмотрении'
+    RESOLVED = 'resolved', 'Решён'
+    CLOSED = 'closed', 'Закрыт'
+    
+
+class Dispute(models.Model):
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='dispute')
+    created_by_id = models.IntegerField(db_index=True)
+    reason = models.TextField(max_length=2000)
+    status = models.CharField(max_length=20, choices=DISPUTE_STATUS_CHOICES, default='open')
+    resolved_by_id = models.IntegerField(blank=True, null=True, db_index=True)
+    resolution = models.TextField(max_length=2000, blank=True)
+    winner_side = models.CharField(max_length=20, blank=True)
+    resolved_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Спор'
+        verbose_name_plural = 'Споры'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_by_id'])
+        ]
+        
+    def __str__(self):
+        return f'Dispute for Order #{self.order.id} - {self.status}'
+    
+    def can_be_resolved(self):
+        return self.status in ['open', 'in_review']
+
+
+class DisputeMessage(models.Model):
+    dispute = models.ForeignKey(Dispute, on_delete=models.CASCADE, related_name='messages')
+    sender_id = models.IntegerField(db_index=True)
+    message = models.TextField(max_length=1000)
+    is_moderator = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Сообщение спора'
+        verbose_name_plural = 'Сообщения споров'
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f'Message in Dispute #{self.dispute.id}'
+    
+    
+    
+    
     
 

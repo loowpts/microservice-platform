@@ -1,17 +1,15 @@
 import json
 import logging
 from django.utils import timezone
-from datetime import timedelta
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
-from django.db.models import Q, Sum, Count, Avg
+from django.db.models import Q
 
 from apps.gigs.models import Gig, GigPackage
 from apps.common.api import get_user, get_users_batch
 from apps.orders.models import Order
-from apps.reviews.models import Review
-from .models import Order, OrderDelivery, OrderRequirement
+from .models import Order, OrderRequirement, Dispute, DisputeMessage
 from .forms import OrderCreateForm, OrderDeliveryForm
 from apps.common.notifications import send_notification
 
@@ -649,5 +647,498 @@ def order_cancel(request, order_id):
     return JsonResponse({
         'success': True,
         'message': 'Заказ отменен',
+        'data': response_data
+    }, status=200)
+
+
+@require_http_methods(['POST'])
+def dispute_create(request, order_id):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    order = get_object_or_404(Order, id=order_id)
+    
+    if order.buyer_id != request.user.id and order.seller_id != request.user.id:
+        return JsonResponse({
+            'success': False,
+            'error': 'У вас нет прав для создания спора по этому заказу'
+        }, status=403)
+    
+    if order.status not in ['in_progress', 'delivered']:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cпор можно создать только для заказов в статусе "в работе" или "доставлен"'
+        }, status=400)
+    
+    if hasattr(order, 'dispute'):
+        return JsonResponse({
+            'success': False,
+            'error': 'Спор по этому заказу уже существует'
+        }, status=400)
+    
+    reason = data.get('reason')
+    
+    if not reason or len(reason) < 20:
+        return JsonResponse({
+            'success': False,
+            'error': 'Причина обязательна для заполнения (минимум 20 символов)'
+        }, status=400)
+    
+    dispute = Dispute.objects.create(
+        order=order,
+        created_by_id=request.user.id,
+        reason=reason,
+        status='open'
+    )
+    
+    order.status = 'disputed'
+    order.save(update_fields=['status', 'updated_at'])
+    
+    DisputeMessage.objects.create(
+        dispute=dispute,
+        sender_id=request.user.id,
+        message=reason,
+        is_moderator=False
+    )
+    
+    recipient_id = order.seller_id if request.user.id == order.buyer_id else order.buyer_id
+    
+    send_notification(
+        user_id=recipient_id,
+        event='dispute_created',
+        title='Создан спор по заказу',
+        message=f'По заказу #{order.id} создан спор. Требуется ваше участие.',
+        notification_type='in_app',
+        data={
+            'order_id': order.id,
+            'dispute_id': dispute.id,
+            'created_by': request.user.id
+        }
+    )
+    
+    logger.info(f'Dispute created: {dispute.id} for order {order.id}')
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Спор создан',
+        'dispute_id': dispute.id
+    }, status=201)
+    
+@require_http_methods(['GET'])
+def dispute_list(request):
+    role = request.GET.get('role', 'participant')
+    status = request.GET.get('status')
+    
+    disputes = Dispute.objects.all()
+    
+    if role == 'participant':
+        disputes = disputes.filter(
+            Q(order__buyer_id=request.user.id) |
+            Q(order__seller_id=request.user.id)
+        )
+    elif role == 'moderator':
+        user_data = get_user(request.user.id)
+        if not user_data or not user_data.get('is_moderator'):
+            return JsonResponse({
+                'success': False,
+                'error': 'У вас нет прав модератора'
+            }, status=403)
+    
+    if status:
+        disputes = disputes.filter(status=status)
+    
+    disputes = disputes.order_by('-created_at').select_related('order', 'order__gig')
+    
+    user_ids = set()
+    for dispute in disputes:
+        user_ids.add(dispute.created_by_id)
+        user_ids.add(dispute.order.buyer_id)
+        user_ids.add(dispute.order.seller_id)
+        if dispute.resolved_by_id:
+            user_ids.add(dispute.resolved_by_id)
+    
+    users_data = get_users_batch(list(user_ids))
+    users_map = {u['id']: u for u in users_data}
+    
+    data = []
+    for dispute in disputes:
+        created_by = users_map.get(dispute.created_by_id)
+        buyer = users_map.get(dispute.order.buyer_id)
+        seller = users_map.get(dispute.order.seller_id)
+        resolved_by = users_map.get(dispute.resolved_by_id) if dispute.resolved_by_id else None
+        
+        messages_count = dispute.messages.count()
+        
+        dispute_data = {
+            'id': dispute.id,
+            'order': {
+                'id': dispute.order.id,
+                'gig': {
+                    'id': dispute.order.gig.id,
+                    'title': dispute.order.gig.title,
+                    'slug': dispute.order.gig.slug,
+                },
+                'buyer_id': dispute.order.buyer_id,
+                'seller_id': dispute.order.seller_id,
+                'status': dispute.order.status,
+            },
+            'created_by_id': dispute.created_by_id,
+            'created_by': created_by,
+            'buyer': buyer,
+            'seller': seller,
+            'reason': dispute.reason,
+            'status': dispute.status,
+            'winner_side': dispute.winner_side if dispute.winner_side else None,
+            'resolution': dispute.resolution if dispute.resolution else None,
+            'resolved_by_id': dispute.resolved_by_id,
+            'resolved_by': resolved_by,
+            'resolved_at': dispute.resolved_at.isoformat() if dispute.resolved_at else None,
+            'messages_count': messages_count,
+            'created_at': dispute.created_at.isoformat(),
+            'updated_at': dispute.updated_at.isoformat(),
+        }
+        
+        data.append(dispute_data)
+        
+    return JsonResponse({
+        'success': True,
+        'role': role,
+        'count': len(data),
+        'data': data
+    }, status=200)
+
+@require_http_methods(['GET'])
+def dispute_detail(request, dispute_id):
+    dispute = get_object_or_404(
+        Dispute.objects.select_related('order', 'order__gig'),
+        id=dispute_id
+    )
+    
+    is_participant = (
+        dispute.order.buyer_id == request.user.id or
+        dispute.order.seller_id == request.user.id
+    )
+    
+    if not is_participant:
+        user_data = get_user(request.user.id)
+        is_moderator = user_data and user_data.get('is_moderator', False)
+        
+        if not is_moderator:
+            return JsonResponse({
+                'success': False,
+                'error': 'У вас нет доступа к этому спору'
+            }, status=403)
+    
+    messages = dispute.messages.all().order_by('created_at')
+    
+    user_ids = set()
+    user_ids.add(dispute.created_by_id)
+    user_ids.add(dispute.order.buyer_id)
+    user_ids.add(dispute.order.seller_id)
+    if dispute.resolved_by_id:
+        user_ids.add(dispute.resolved_by_id)
+    
+    for message in messages:
+        user_ids.add(message.sender_id)
+    
+    users_data = get_users_batch(list(user_ids))
+    users_map = {u['id']: u for u in users_data}
+    
+    created_by = users_map.get(dispute.created_by_id)
+    buyer = users_map.get(dispute.order.buyer_id)
+    seller = users_map.get(dispute.order.seller_id)
+    resolved_by = users_map.get(dispute.resolved_by_id) if dispute.resolved_by_id else None
+
+    messages_data = []
+    for message in messages:
+        sender = users_map.get(message.sender_id)
+        messages_data.append({
+            'id': message.id,
+            'sender_id': message.sender_id,
+            'sender': sender,
+            'message': message.message,
+            'is_moderator': message.is_moderator,
+            'created_at': message.created_at.isoformat(),
+        })
+
+    response_data = {
+        'id': dispute.id,
+        'order': {
+            'id': dispute.order.id,
+            'gig': {
+                'id': dispute.order.gig.id,
+                'title': dispute.order.gig.title,
+                'slug': dispute.order.gig.slug,
+            },
+            'buyer_id': dispute.order.buyer_id,
+            'seller_id': dispute.order.seller_id,
+            'price': float(dispute.order.price),
+            'status': dispute.order.status,
+            'created_at': dispute.order.created_at.isoformat(),
+        },
+        'created_by_id': dispute.created_by_id,
+        'created_by': created_by,
+        'buyer': buyer,
+        'seller': seller,
+        'reason': dispute.reason,
+        'status': dispute.status,
+        'winner_side': dispute.winner_side if dispute.winner_side else None,
+        'resolution': dispute.resolution if dispute.resolution else None,
+        'resolved_by_id': dispute.resolved_by_id,
+        'resolved_by': resolved_by,
+        'resolved_at': dispute.resolved_at.isoformat() if dispute.resolved_at else None,
+        'messages': messages_data,
+        'messages_count': len(messages_data),
+        'can_be_resolved': dispute.can_be_resolved(),
+        'created_at': dispute.created_at.isoformat(),
+        'updated_at': dispute.updated_at.isoformat(),
+    }
+    
+    return JsonResponse({
+        'success': True,
+        'data': response_data
+    }, status=200)
+    
+@require_http_methods(['POST'])
+def dispute_add_message(request, dispute_id):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    dispute = get_object_or_404(Dispute.objects.select_related('order', 'order__gig'), id=dispute_id)
+    
+    is_participant = (
+        dispute.order.buyer_id == request.user.id or
+        dispute.order.seller_id == request.user.id
+    )
+    
+    user_data = get_user(request.user.id)
+    is_moderator = user_data and user_data.get('is_moderator', False)
+    
+    if not is_participant and not is_moderator:
+        return JsonResponse({
+            'success': False,
+            'error': 'У вас нет доступа к этому спору'
+        }, status=403)
+        
+    if dispute.status == 'closed':
+        return JsonResponse({
+            'success': False,
+            'error': 'Спор закрыт, добавление сообщений невозможно'
+        }, status=400)
+    
+    message = data.get('message', '').strip()
+    if len(message) < 5:
+        return JsonResponse({
+            'success': False,
+            'error': 'Сообщение должно содержать минимум 5 символов'
+        }, status=400)
+    
+    if len(message) > 1000:
+        return JsonResponse({
+            'success': False,
+            'error': 'Сообщение не должно превышать 1000 символов'
+        }, status=400)
+        
+    dispute_message = DisputeMessage.objects.create(
+        dispute=dispute,
+        sender_id=request.user.id,
+        message=message,
+        is_moderator=is_moderator
+    )
+    
+    dispute.updated_at = timezone.now()
+    dispute.save(update_fields=['updated_at'])
+    
+    recipients = []
+    
+    if request.user.id != dispute.order.buyer_id:
+        recipients.append(dispute.order.buyer_id)
+    
+    if request.user.id != dispute.order.seller_id:
+        recipients.append(dispute.order.seller_id)
+    
+    for recipient_id in recipients:
+        send_notification(
+            user_id=recipient_id,
+            event='dispute_message',
+            title='Новое сообщение в споре',
+            message=f'Новое сообщение по спору #{dispute.id} для заказа #{dispute.order.id}',
+            notification_type='in_app',
+            data={
+                'dispute_id': dispute.id,
+                'order_id': dispute.order.id,
+                'sender_id': request.user.id
+            }
+        )
+    
+    logger.info(f'Message added to dispute {dispute_id} by user {request.user.id}')
+    
+    sender = user_data
+    
+    response_data = {
+        'message': {
+            'id': dispute_message.id,
+            'sender_id': dispute_message.sender_id,
+            'sender': sender,
+            'message': dispute_message.message,
+            'is_moderator': dispute_message.is_moderator,
+            'created_at': dispute_message.created_at.isoformat(),
+        },
+        'dispute': {
+            'id': dispute.id,
+            'status': dispute.status,
+            'messages_count': dispute.messages.count(),
+            'updated_at': dispute.updated_at.isoformat(),
+        }
+    }
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Сообщение добавлено',
+        'data': response_data
+    }, status=201)
+
+@require_http_methods(['POST'])
+def dispute_resolve(request, dispute_id):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    dispute = get_object_or_404(Dispute.objects.select_related('order', 'order__gig'), id=dispute_id)
+    
+    user_data = get_user(request.user.id)
+    is_moderator = user_data and user_data.get('is_moderator', False)
+    
+    if not is_moderator:
+        return JsonResponse({
+            'success': False,
+            'error': 'Только модератор может разрешить спор.'
+        }, status=403)
+
+    if not dispute.can_be_resolved():
+        return JsonResponse({
+            'success': False,
+            'error': 'Спор уже решён или закрыт'
+        }, status=400)
+    
+    winner_side = data.get('winner_side', '').strip()
+    resolution = data.get('resolution', '').strip()
+    
+    if not winner_side or not resolution:
+        return JsonResponse({
+            'success': False,
+            'error': 'Необходимо указать winner_side и resolution'
+        }, status=400)
+    
+    if winner_side not in ['buyer', 'seller']:
+        return JsonResponse({
+            'success': False,
+            'error': 'winner_side должен быть "buyer" или "seller"'
+        }, status=400)
+    
+    if len(resolution) < 20:
+        return JsonResponse({
+            'success': False,
+            'error': 'Решение должно содержать минимум 20 символов'
+        }, status=400)
+    
+    dispute.status = 'resolved'
+    dispute.resolved_by_id = request.user.id
+    dispute.resolution = resolution
+    dispute.winner_side = winner_side
+    dispute.resolved_at = timezone.now()
+    dispute.save()
+    
+    order = dispute.order
+    
+    if winner_side == 'buyer':
+        order.status = 'cancelled'
+        order.save(update_fields=['status', 'updated_at'])
+    elif winner_side == 'seller':
+        order.status = 'completed'
+        order.completed_at = timezone.now()
+        order.save(update_fields=['status', 'completed_at', 'updated_at'])
+        
+        order.gig.orders_count += 1
+        order.gig.save(update_fields=['orders_count'])
+    
+    winner_text = "покупателя" if winner_side == "buyer" else "продавца"
+    DisputeMessage.objects.create(
+        dispute=dispute,
+        sender_id=request.user.id,
+        message=f'Спор решён в пользу {winner_text}. Решение: {resolution}',
+        is_moderator=True
+    )
+    
+    send_notification(
+        user_id=order.buyer_id,
+        event='dispute_resolved',
+        title='Спор решён',
+        message=f'Модератор принял решение по спору #{dispute.id}. Победитель: {"вы" if winner_side == "buyer" else "продавец"}',
+        notification_type='in_app',
+        data={
+            'dispute_id': dispute.id,
+            'order_id': order.id,
+            'winner_side': winner_side
+        }
+    )
+    
+    send_notification(
+        user_id=order.seller_id,
+        event='dispute_resolved',
+        title='Спор решён',
+        message=f'Модератор принял решение по спору #{dispute.id}. Победитель: {"покупатель" if winner_side == "buyer" else "вы"}',
+        notification_type='in_app',
+        data={
+            'dispute_id': dispute.id,
+            'order_id': order.id,
+            'winner_side': winner_side
+        }
+    )
+    
+    logger.info(f'Dispute resolved: {dispute.id} by moderator {request.user.id}, winner: {winner_side}')
+    
+    buyer = get_user(order.buyer_id)
+    seller = get_user(order.seller_id)
+    moderator = user_data
+    
+    response_data = {
+        'id': dispute.id,
+        'order': {
+            'id': order.id,
+            'status': order.status,
+            'completed_at': order.completed_at.isoformat() if order.completed_at else None,
+        },
+        'status': dispute.status,
+        'winner_side': dispute.winner_side,
+        'resolution': dispute.resolution,
+        'resolved_by_id': dispute.resolved_by_id,
+        'resolved_by': moderator,
+        'resolved_at': dispute.resolved_at.isoformat(),
+        'buyer': buyer,
+        'seller': seller,
+        'updated_at': dispute.updated_at.isoformat(),
+    }
+    
+    return JsonResponse({
+        'success': True,
+        'message': 'Спор успешно решён',
         'data': response_data
     }, status=200)
