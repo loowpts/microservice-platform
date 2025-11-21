@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.views.decorators.http import require_http_methods
+from apps.common.notifications import send_notification
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,13 @@ def create_user(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
+            send_notification(
+                user_id=user.id,
+                event='user_registered',
+                title='Добро пожаловать!',
+                message=f'Здравствуйте, {user.first_name}! Ваш аккаунт успешно создан.',
+                notification_type='in_app'
+            )
             logger.info(f"User created: {user.email}")
             return JsonResponse({
                 'status': 'success',

@@ -9,6 +9,7 @@ from apps.common.api import get_user, get_users_batch
 from apps.orders.models import Order
 from .models import Review
 from .forms import ReviewForm, ReviewReplyForm
+from apps.common.notifications import send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,19 @@ def review_create(request):
     review.buyer_id = request.user.id
     review.seller_id = order.gig.seller_id
     review.save()
+    
+    send_notification(
+        user_id=review.seller_id,
+        event='review_posted',
+        title='Новый отзыв',
+        message=f'Вам оставили отзыв с оценкой {review.rating}/5 на услугу "{review.gig.title}"',
+        notification_type='in_app',
+        data={
+            'review_id': review.id,
+            'gig_id': review.gig.id,
+            'rating': review.rating
+        }
+    )
     
     buyer = get_user(review.buyer_id)
     response_data = {

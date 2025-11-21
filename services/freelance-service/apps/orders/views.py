@@ -13,6 +13,7 @@ from apps.orders.models import Order
 from apps.reviews.models import Review
 from .models import Order, OrderDelivery, OrderRequirement
 from .forms import OrderCreateForm, OrderDeliveryForm
+from apps.common.notifications import send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +221,19 @@ def order_create(request):
     order.status = 'pending'
     order.save()
     
+    send_notification(
+        user_id=order.seller_id,
+        event='order_created',
+        title='Новый заказ!',
+        message=f'У вас новый заказ #{order.id} на "{order.gig.title}" на сумму {order.price}₽',
+        notification_type='in_app',
+        data={
+            'order_id': order.id,
+            'gig_id': order.gig.id,
+            'buyer_id': order.buyer_id
+        }
+    )
+    
     requirement_files = data.get('requirement_files', [])
     for req_file in requirement_files:
         file_url = req_file.get('file_url')
@@ -406,6 +420,18 @@ def order_deliver(request, order_id):
     delivery.order = order
     delivery.save()
     
+    send_notification(
+        user_id=order.buyer_id,
+        event='order_delivered',
+        title='Результат работы получен',
+        message=f'Продавец отправил результат по заказу #{order.id}. Проверьте работу.',
+        notification_type='in_app',
+        data={
+            'order_id': order.id,
+            'delivery_id': delivery.id
+        }
+    )
+    
     order.status = 'delivered'
     order.delivered_at = timezone.now()
     order.save(update_fields=['status', 'delivered_at', 'updated_at'])
@@ -484,6 +510,17 @@ def order_complete(request, order_id):
     order.gig.orders_count += 1
     order.gig.save(update_fields=['orders_count'])
     
+    send_notification(
+        user_id=order.seller_id,
+        event='order_completed',
+        title='Заказ завершён',
+        message=f'Заказ #{order.id} успешно завершён покупателем. Средства зачислены.',
+        notification_type='in_app',
+        data={
+            'order_id': order.id,
+            'amount': float(order.price)
+        }
+    )   
     buyer = get_user(order.buyer_id)
     seller = get_user(order.seller_id)
     
@@ -556,6 +593,20 @@ def order_cancel(request, order_id):
         
     order.status = 'cancelled'
     order.save(update_fields=['status', 'updated_at'])
+    
+    recipient_id = order.seller_id if order.buyer_id == request.user.id else order.buyer_id
+
+    send_notification(
+        user_id=recipient_id,
+        event='order_cancelled',
+        title='Заказ отменён',
+        message=f'Заказ #{order.id} был отменён. Причина: {cancellation_reason or "не указана"}',
+        notification_type='in_app',
+        data={
+            'order_id': order.id,
+            'cancelled_by': request.user.id
+        }
+    )
     
     buyer = get_user(order.buyer_id)
     seller = get_user(order.seller_id)
