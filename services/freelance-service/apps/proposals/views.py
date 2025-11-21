@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from apps.common.api import get_user, get_users_batch
+from apps.common.notifications import send_notification
 from .models import CustomProposal
 from apps.gigs.models import Gig
 from apps.orders.models import Order
@@ -198,6 +199,18 @@ def proposal_create(request):
     proposal.seller_id = request.user.id
     proposal.buyer_id = buyer_id
     proposal.save()
+    
+    send_notification(
+        user_id=proposal.gig.seller_id,
+        event='proposal_received',
+        title='Новое предложение',
+        message=f'Вы получили предложение на услугу "{proposal.gig.title}"',
+        notification_type='in_app',
+        data={
+            'proposal_id': proposal.id,
+            'gig_id': proposal.gig.id
+        }
+    )
 
     buyer = get_user(proposal.buyer_id)
     seller = get_user(proposal.seller_id)

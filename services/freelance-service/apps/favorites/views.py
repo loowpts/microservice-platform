@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
 from apps.common.api import get_user, get_users_batch
+from apps.common.notifications import send_notification
 from apps.gigs.models import Gig
 from .models import Favorite
 
