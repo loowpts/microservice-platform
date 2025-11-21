@@ -1,9 +1,16 @@
+import json
+import urllib.parse
+import logging
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from apps.users.models import User, UserProfile
 from apps.users.forms import RegisterForm, ProfileForm
-import urllib.parse
-import logging
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
+from django.views.decorators.http import require_http_methods
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,3 +173,157 @@ def set_role(request):
         logger.info(f"Role {role} set for user: {user.email}")
         return JsonResponse({'status': 'role_updated'}, status=200)
     return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@require_http_methods(['POST'])
+def login(request):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not email or not password:
+        return JsonResponse({
+            'success': False,
+            'error': 'Все поля обязательны для заполнения.'
+        }, status=400)
+    
+    email = email.lower().strip()
+    
+    user = authenticate(request, username=email, password=password)
+    
+    if user is None:
+        logger.warning(f"Failed login attempt for email: {email}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid credentials'
+        }, status=401)
+    
+    
+    if user.is_active == False:
+        logger.warning(f"Login attempt for disabled account: {email}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Account is disabled'
+        }, status=403)
+        
+    refresh = RefreshToken.for_user(user)
+    access_token = str(refresh.access_token)
+    refresh_token = str(refresh)
+
+    logger.info(f"User logged in: {user.email}")
+    
+    return JsonResponse({
+        'status': 'success',
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role_display': user.profile.role_display()
+        }
+    }, status=200)
+
+
+@require_http_methods(['POST'])
+def logout(request):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    refresh_token = data.get('refresh_token')
+    if not refresh_token:
+        return JsonResponse({
+            'success': False,
+            'error': 'refresh_token are required'
+        }, status=400)
+    
+    try:
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+        logger.info('User logged out')
+        return JsonResponse({
+            'success': True,
+            'message': 'Logged out successfully'
+        }, status=200)
+    except TokenError as e:
+        logger.error(f"Invalid refresh token during logout: {str(e)}")
+        return JsonResponse({'error': 'Invalid or expired refresh token'}, status=400)
+    except Exception as e:
+        logger.error(f"Error during logout: {str(e)}")
+        return JsonResponse({'error': 'Logout failed'}, status=500)
+
+@require_http_methods(['POST'])
+def refresh_token(request):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    refresh_token = data.get('refresh_token')
+    
+    try:
+        token = RefreshToken(refresh_token)
+        new_access = str(token.access_token)
+        logger.info(f'Token refreshed: {token}')
+        return JsonResponse({
+            'success': True,
+            'access_token': new_access
+        }, status=200)
+    except TokenError as e:
+        logger.error(f"Invalid refresh token: {str(e)}")
+        return JsonResponse({'error': 'Invalid or expired refresh token'}, status=400)
+    except Exception as e:
+        logger.error(f"Error during: {str(e)}")
+        return JsonResponse({'error': 'failed'}, status=500)
+    
+@require_http_methods(['POST'])
+def verify_token(request):
+    
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    
+    token = data.get('token')
+    if not token:
+        return JsonResponse({
+            'success': False,
+            'error': 'token are required'
+        }, status=400)
+    
+    try:
+        access_token = AccessToken(token)
+        user_id = access_token['user_id']
+        user = User.objects.get(id=user_id)
+        return JsonResponse({
+            'success': True,
+            'message': 'Valid',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            }
+        }, status=200)
+        
