@@ -8,6 +8,7 @@ from .router import get_service_url, build_target_url
 
 logger = logging.getLogger('gateway')
 
+
 @csrf_exempt
 @require_http_methods(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 def proxy_request(request):
@@ -28,8 +29,7 @@ def proxy_request(request):
     )
     
     headers = prepare_headers(request)
-    
-    body = prepary_body(request)
+    body = prepare_body(request)
     
     try:
         response = make_request(
@@ -42,10 +42,10 @@ def proxy_request(request):
         return create_response(response)
     
     except requests.ConnectionError:
-        logger.info(f'Service unavailable: {service_url}')
+        logger.error(f'Service unavailable: {service_url}')
         return JsonResponse({
             'success': False,
-            'error': 'Сервис времменно недоступен'
+            'error': 'Сервис временно недоступен'
         }, status=503)
     
     except requests.Timeout:
@@ -59,12 +59,12 @@ def proxy_request(request):
         logger.error(f'Proxy error: {str(e)}')
         return JsonResponse({
             'success': False,
-            'error': 'Внутрення ошибка сервера'
+            'error': 'Внутренняя ошибка сервера'
         }, status=500)
-        
+
+
 def prepare_headers(request):
     """Подготовить заголовки для запроса к сервису"""
-    
     headers = {}
     
     for key, value in request.headers.items():
@@ -72,9 +72,10 @@ def prepare_headers(request):
             headers[key] = value
     
     if 'Content-Type' not in headers:
-            headers['Content-Type'] = 'application/json'
+        headers['Content-Type'] = 'application/json'
        
     return headers
+
 
 def prepare_body(request):
     """Подготовить тело запроса"""
@@ -82,9 +83,9 @@ def prepare_body(request):
         return request.body
     return None
 
+
 def make_request(method, url, headers, body):
     """Выполнить HTTP запрос к сервису"""
-    
     kwargs = {
         'headers': headers,
         'timeout': 30
@@ -104,17 +105,16 @@ def make_request(method, url, headers, body):
     elif method == 'DELETE':
         return requests.delete(url, **kwargs)
 
+
 def create_response(response):
     """Создать Django response из requests response"""
     
-    # Если ответ пустой
     if not response.content:
         return HttpResponse(
             status=response.status_code,
             content_type='application/json'
         )
     
-    # Попробовать распарсить как JSON
     try:
         data = response.json()
         return JsonResponse(
@@ -123,23 +123,21 @@ def create_response(response):
             safe=False
         )
     except json.JSONDecodeError:
-        # Если не JSON - вернуть как есть
         return HttpResponse(
             response.content,
             status=response.status_code,
             content_type=response.headers.get('Content-Type', 'text/plain')
         )
-        
+
+
 @require_http_methods(['GET'])
 def health_check(request):
     """Проверка здоровья Gateway и всех сервисов"""
-    
     from django.conf import settings
     
     services_status = {}
     all_healthy = True
     
-    # Проверить каждый сервис
     services = {
         'user-service': settings.USER_SERVICE_URL,
         'freelance-service': settings.FREELANCE_SERVICE_URL,
