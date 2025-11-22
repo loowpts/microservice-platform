@@ -43,3 +43,4 @@ class RateLimitMiddleware(MiddlewareMixin):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+    
