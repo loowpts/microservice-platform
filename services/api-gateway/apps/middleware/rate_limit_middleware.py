@@ -13,7 +13,6 @@ class RateLimitMiddleware(MiddlewareMixin):
         self.get_response = get_response
         self.requests_limit = settings.RATE_LIMIT_REQUESTS
         self.window = settings.RATE_LIMIT_WINDOW
-        return super().__init__(get_response)
     
     def __call__(self, request: HttpRequest) -> HttpResponse:
 
@@ -43,4 +42,3 @@ class RateLimitMiddleware(MiddlewareMixin):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
-    

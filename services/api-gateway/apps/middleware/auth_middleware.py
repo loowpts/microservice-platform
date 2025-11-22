@@ -1,5 +1,3 @@
-from django.http.request import HttpRequest
-from django.http.response import HttpResponse
 import jwt
 import logging
 from django.http import JsonResponse
@@ -10,14 +8,13 @@ logger = logging.getLogger('gateway')
 
 # Пути которые не требуют аутентификации
 PUBLIC_PATHS = [
-    
     '/api/auth/login/',
     '/api/auth/register/',
-    '/api/auth/refrest',
+    '/api/auth/refresh/',
     '/api/gigs/',
-    '/api/search',
-    '/api/posts',
-    
+    '/api/search/',
+    '/api/posts/',
+    '/health/',
 ]
 
 
@@ -28,13 +25,13 @@ def is_public_path(path):
             return True
     return False
 
+
 class JWTAuthMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         self.get_response = get_response
         super().__init__(get_response)
         
-    def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Проверить публичный путь
+    def __call__(self, request):
         if is_public_path(request.path):
             return self.get_response(request)
         
@@ -63,10 +60,10 @@ class JWTAuthMiddleware(MiddlewareMixin):
                 algorithms=[settings.JWT_ALGORITHM]
             )
 
-            request.user.id = payload.get('user_id')
+            request.user_id = payload.get('user_id')
             request.user_email = payload.get('email')
             
-            logging.info(f'Authenticated user: {request.user.id}')
+            logger.info(f'Authenticated user: {request.user_id}')
             
         except jwt.ExpiredSignatureError:
             return JsonResponse({
@@ -74,7 +71,8 @@ class JWTAuthMiddleware(MiddlewareMixin):
                 'error': 'Токен истёк'
             }, status=401)
             
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            logger.warning(f'Invalid token: {str(e)}')
             return JsonResponse({
                 'success': False,
                 'error': 'Неверный токен'

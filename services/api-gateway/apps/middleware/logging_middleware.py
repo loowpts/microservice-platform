@@ -12,13 +12,11 @@ class LoggingMiddleware(MiddlewareMixin):
         
     def process_request(self, request):
         """Логировать входящий запрос"""
-        
         request.start_time = time.time()
-        
         ip = self.get_client_ip(request)
 
         logger.info(
-            f'-> {request.method} {request.path} '
+            f'→ {request.method} {request.path} '
             f'from {ip} '
             f'User-Agent: {request.META.get("HTTP_USER_AGENT", "Unknown")}'
         )
@@ -27,18 +25,19 @@ class LoggingMiddleware(MiddlewareMixin):
 
     def process_response(self, request, response):
         """Логировать ответ"""
-        
         if hasattr(request, 'start_time'):
             duration = time.time() - request.start_time
             
-        logger.info(                                                                                                                              
-            f'← {request.method} {request.path} '
-            f'{response.status_code} '
-            f'({duration:.2f}s)'
-        )
+            logger.info(
+                f'← {request.method} {request.path} '
+                f'{response.status_code} '
+                f'({duration:.2f}s)'
+            )
         
+        return response
+
     def get_client_ip(self, request):
-        """Получить IP адресс клиента"""
+        """Получить IP адрес клиента"""
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         
         if x_forwarded_for:
