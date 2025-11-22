@@ -1,46 +1,35 @@
 import os
 from pathlib import Path
-from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'api-gateway-secret-key-change-in-production'
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+SECRET_KEY = os.getenv('SECRET_KEY', 'api-gateway-secret-key-change-in-production')
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '*']
 
-DJANGO_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
+INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
-]
-
-THIRD_PARTY_APPS = [
-    'rest_framework',
-    'rest_framework_simplejwt',
+    
     'corsheaders',
-]
+    
 
-LOCAL_APPS = [
     'apps.gateway',
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
-
 MIDDLEWARE = [
+
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
-    # 'apps.middleware.logging_middleware.LoggingMiddleware',
-    # 'apps.middleware.auth_middleware.JWTAuthMiddleware',
-    # 'apps.middleware.rate_limit_middleware.RateLimitMiddleware',
+    'apps.middleware.logging_middleware.LoggingMiddleware',       # Логирование
+    'apps.middleware.auth_middleware.JWTAuthMiddleware',          # Аутентификация
+    'apps.middleware.rate_limit_middleware.RateLimitMiddleware',  # Rate limiting
+    
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -54,58 +43,27 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
 ]
 
+WSGI_APPLICATION = 'config.wsgi.application'
+
 DATABASES = {}
 
-# REST Framework
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
-}
 
-# JWT Settings
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-}
+# Для разработки - разрешить все домены
+CORS_ALLOW_ALL_ORIGINS = True
 
-# JWT Settings
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
-JWT_ALGORITHM = 'HS256'
+# Для продакшена - только конкретные домены
+# CORS_ALLOWED_ORIGINS = [
+#     'http://localhost:3000',
+#     'https://yourapp.com',
+# ]
 
+CORS_ALLOW_CREDENTIALS = True  # Для cookies и Authorization headers
 
-AUTH_USER_MODEL = 'users.User'
-
-# CORS Settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
-
-# CORS_ALLOW_ALL_ORIGINS = True  - Для разработки
-CORS_ALLOW_CREDENTIALS = True
-
-RATE_LIMIT_REQUESTS = int(os.getenv('RATE_LIMIT_REQUESTS', 100))
-RATE_LIMIT_WINDOW = int(os.getenv('RATE_LIMIT_WINDOW', 60))
-
-# Дополнительные CORS настройки
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -127,46 +85,49 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
-
-STATIC_URL = 'static/'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-NOTIFICATION_SERVICE_URL = os.getenv('NOTIFICATION_SERVICE_URL', 'http://localhost:8001')
-USER_SERVICE_URL = os.getenv('USER_SERVICE_URL', 'http://localhost:8000')
-FREELANCE_SERVICE_URL = os.getenv('FREELANCE_SERVICE_URL', 'http://localhost:8002')
-NOTIFICATION_SERVICE_URL = os.getenv('NOTIFICATION_SERVICE_URL', 'http://localhost:8001')
-CONTENT_SERVICE_URL = os.getenv('CONTENT_SERVICE_URL', 'http://localhost:8003')
-
 CACHES = {
-       'default': {
-           'BACKEND': 'django_redis.cache.RedisCache',
-           'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
-           'OPTIONS': {
-               'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-           }
-       }
-   }
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'gateway.log',
+            'formatter': 'verbose',
         },
     },
     'loggers': {
+        'gateway': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'django': {
             'handlers': ['console'],
             'level': 'INFO',
-        },
-        'apps.users': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
         },
     },
     'root': {
@@ -175,3 +136,26 @@ LOGGING = {
     },
 }
 
+USER_SERVICE_URL = os.getenv('USER_SERVICE_URL', 'http://localhost:8000')
+FREELANCE_SERVICE_URL = os.getenv('FREELANCE_SERVICE_URL', 'http://localhost:8002')
+NOTIFICATION_SERVICE_URL = os.getenv('NOTIFICATION_SERVICE_URL', 'http://localhost:8001')
+CONTENT_SERVICE_URL = os.getenv('CONTENT_SERVICE_URL', 'http://localhost:8003')
+
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
+JWT_ALGORITHM = 'HS256'
+
+RATE_LIMIT_REQUESTS = int(os.getenv('RATE_LIMIT_REQUESTS', 100))
+RATE_LIMIT_WINDOW = int(os.getenv('RATE_LIMIT_WINDOW', 60))
+
+LANGUAGE_CODE = 'ru-ru'
+TIME_ZONE = 'Europe/Moscow'
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Отключить проверки БД (т.к. БД нет)
+SILENCED_SYSTEM_CHECKS = ['admin.E408', 'admin.E409', 'admin.E410']
