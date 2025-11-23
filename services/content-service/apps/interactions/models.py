@@ -10,6 +10,7 @@ class Like(models.Model):
     object_id = models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
     created_at = models.DateTimeField(auto_now_add=True)
+    
     class Meta:
         unique_together = ('user_id', 'content_type', 'object_id')
         indexes = [
@@ -32,3 +33,15 @@ class View(models.Model):
         
     def __str__(self) -> str:
         return f'View of {self.post} by {self.user_id or self.ip_address})'
+
+class CommentLike(models.Model):
+    comment = models.ForeignKey(
+        'comments.Comment',
+        on_delete=models.CASCADE,
+        related_name='likes'
+    )
+    user_id = models.IntegerField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['comment', 'user_id']

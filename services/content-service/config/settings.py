@@ -175,7 +175,11 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    CSRF_TRUSTED_ORIGINS = [
+        origin.strip() 
+        for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') 
+        if origin.strip()
+    ]
 
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = os.getenv('TIME_ZONE', 'Europe/Moscow')

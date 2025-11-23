@@ -6,7 +6,6 @@ from django.db.models import Q
 from django.views.decorators.http import require_http_methods
 
 
-from apps.common.proxies import UserProxy
 from .models import Channel
 from apps.posts.models import Post
 from apps.interactions.models import Like
