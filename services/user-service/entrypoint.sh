@@ -1,45 +1,46 @@
 #!/bin/bash
-
 set -e
 
-echo "Starting User Service..."
+echo "Entrypoint: starting user_service container..."
 
-# Wait for database to be ready
-echo "Waiting for PostgreSQL"
-while ! nc -z ${DB_HOST:-localhost} ${DB_PORT:-5432}; do
-    sleep 0.1
+# Ждём пока БД будет доступна
+echo "Waiting for PostgreSQL at ${DB_HOST:-user_db}:${DB_PORT:-5432}..."
+until nc -z ${DB_HOST:-user_db} ${DB_PORT:-5432}; do
+  sleep 0.5
 done
-echo "PostgreSQL is ready!"
+echo "PostgreSQL is available."
 
-# Wait for Redis to be ready
-echo "Waiting for Redis..."
-while ! nc -z ${REDIS_HOST:-localhost} ${REDIS_PORT:-6379}; do
-    sleep 0.1
+# Ждём Redis
+echo "Waiting for Redis at ${REDIS_HOST:-user_redis}:${REDIS_PORT:-6379}..."
+until nc -z ${REDIS_HOST:-user_redis} ${REDIS_PORT:-6379}; do
+  sleep 0.5
 done
-echo "Redis is ready!"
+echo "Redis is available."
 
-# Run migrations
-echo "Running database migrations..."
+# Выполняем миграции (без повторного выполнения в CMD)
+echo "Running migrations..."
 python manage.py migrate --noinput
 
-# Collect static files
+# Собираем static (полезно для dev, чтобы staticfiles были в volume)
 echo "Collecting static files..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput || true
 
-# Create superuser if specified
-if [ "$DJANGO_SUPERUSER_USERNAME" ] && [ "$DJANGO_SUPERUSER_EMAIL" ] && [ "$DJANGO_SUPERUSER_PASSWORD" ]; then
-    echo "Creating superuser..."
-    python manage.py shell <<EOF
+# Создание суперпользователя (если переменные заданы)
+if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+  echo "Ensure superuser exists..."
+  python - <<PYCODE
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(username='$DJANGO_SUPERUSER_USERNAME').exists():
-    User.objects.create_superuser('$DJANGO_SUPERUSER_USERNAME', '$DJANGO_SUPERUSER_EMAIL', '$DJANGO_SUPERUSER_PASSWORD')
-    print('Superuser created successfully')
+username = "${DJANGO_SUPERUSER_USERNAME}"
+email = "${DJANGO_SUPERUSER_EMAIL}"
+password = "${DJANGO_SUPERUSER_PASSWORD}"
+if not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(username, email, password)
+    print("Superuser created.")
 else:
-    print('Superuser already exists')
-EOF
+    print("Superuser already exists.")
+PYCODE
 fi
 
-# Execute the main command
-echo "Starting application..."
+# Передаём управление основной команде контейнера
 exec "$@"

@@ -1,52 +1,46 @@
-# Stage 1: Builder
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    postgresql-client \
-    && rm -rf /var/lob/apt/lists/*
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Stage 2: Runtime
+# Используем один stage для удобства разработки
 FROM python:3.11-slim
 
+# Установим рабочую директорию
 WORKDIR /app
 
-# Install runtime dependencies
+# Установим системные зависимости (curl/netcat нужны для healthcheck/entrypoint)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
+    build-essential \
+    libpq-dev \
+    curl \
+    netcat \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy python dependencies
-COPY --from=builder /root/.local /root/.local
+# Копируем зависимости и ставим их
+COPY requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r /app/requirements.txt
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Копируем код
+COPY . /app
 
-# Copy application code
-COPY . .
+# Копируем entrypoint и даём права
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/media /app/staticfiles
-
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown +R appuser:appuser /app
-USER appuser
-
-# Expose port
+# Порты
 EXPOSE 8001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8001/health/', timeout=5)"
+# Переменные окружения по умолчанию (можно переопределить через .env)
+ENV PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=user_service.settings \
+    DB_HOST=user_db \
+    DB_PORT=5432 \
+    REDIS_HOST=user_redis \
+    REDIS_PORT=6379
 
-# Run migration and start server
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn user_service.wsgi:application --bind 0.0.0.0:8001 --workers 3 --timeout60"]
+# Healthcheck (использует curl)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8001/health/ || exit 1
 
+# Entrypoint запускает миграции/collectstatic и затем команду контейнера.
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# По умолчанию используем runserver для dev
+CMD ["sh", "-c", "python manage.py runserver 0.0.0.0:8001"]
