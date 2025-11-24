@@ -2,7 +2,6 @@ from django.db import models
 from django.utils.text import slugify
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
-from apps.common.proxies import UserProxy
 from apps.common.api import get_user
 
 class Channel(models.Model):

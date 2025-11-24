@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from django.db.models import F
 
 
 class Post(models.Model):
@@ -11,6 +12,10 @@ class Post(models.Model):
     image_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    view_count = models.PositiveIntegerField(default=0)
+    like_count = models.PositiveIntegerField(default=0)
+    comment_count = models.PositiveIntegerField(default=0)
     
     class Meta:
         unique_together = ('channel', 'slug')
@@ -32,3 +37,20 @@ class Post(models.Model):
     
     def __str__(self) -> str:
         return f'{self.title} ({self.channel.slug})'
+    
+    def increment_views(self):
+        Post.objects.filter(pk=self.pk).update(view_count=F('view_count') + 1)
+    
+    def update_like_count(self):
+        """Обновить счетчик лайков"""
+        self.like_count = self.likes.count()
+        self.save(update_fields=['like_count'])
+        
+    def update_comment_count(self):
+        """Обновить счетчик комментариев"""
+        self.comment_count = self.comments.count()
+        self.save(update_fields=['comment_count'])
+    
+        
+    
+    
