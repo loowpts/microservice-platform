@@ -1,0 +1,131 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  notification_db:
+    image: postgres:15-alpine
+    container_name: notification_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-notification_db}
+      POSTGRES_USER: ${DB_USER:-notification_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-notification_pass}
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-notification_user} -d ${DB_NAME:-notification_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification_network
+
+  # Redis Cache & Celery Broker
+  notification_redis:
+    image: redis:7-alpine
+    container_name: notification_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-notification_redis_pass}
+    volumes:
+      - notification_redis_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-notification_redis_pass}", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification_network
+  
+  notification_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification_service
+    volumes:
+      - .:/app
+      - notification_static:/app/staticfiles
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DB_HOST=notification_db
+      - DB_PORT=5432
+      - REDIS_HOST=notification_redis
+      - REDIS_PORT=6379
+    depends_on:
+      notification_db:
+        condition: service_healthy
+      notification_redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - notification_network
+  
+  notification_celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification_celery
+    command: celery -A config worker -l INFO
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DB_HOST=notification_db
+      - DB_PORT=5432
+      - REDIS_HOST=notification_redis
+      - REDIS_PORT=6379
+    depends_on:
+      notification_db:
+        condition: service_healthy
+      notification_redis:
+        condition: service_healthy
+    networks:
+      - notification_network
+  
+  notification_celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification_celery_beat
+    command: celery -A config beat -l INFO
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DB_HOST=notification_db
+      - DB_PORT=5432
+      - REDIS_HOST=notification_redis
+      - REDIS_PORT=6379
+    depends_on:
+      notification_db:
+        condition: service_healthy
+      notification_redis:
+        condition: service_healthy
+    networks:
+      - notification_network
+
+volumes:
+  notification_db_data:
+    driver: local
+  notification_redis_data:
+    driver: local
+  notification_static:
+    driver: local
+
+networks:
+  notification_network:
+    driver: local
