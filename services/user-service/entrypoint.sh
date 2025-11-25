@@ -1,46 +1,53 @@
 #!/bin/bash
 set -e
 
-echo "Entrypoint: starting user_service container..."
+echo "=========================================="
+echo "Starting User Service container..."
+echo "=========================================="
 
-# Ждём пока БД будет доступна
+# Ждём PostgreSQL
 echo "Waiting for PostgreSQL at ${DB_HOST:-user_db}:${DB_PORT:-5432}..."
-until nc -z ${DB_HOST:-user_db} ${DB_PORT:-5432}; do
-  sleep 0.5
+while ! nc -z ${DB_HOST:-user_db} ${DB_PORT:-5432}; do
+    sleep 0.5
 done
-echo "PostgreSQL is available."
+echo "✓ PostgreSQL is available"
 
 # Ждём Redis
 echo "Waiting for Redis at ${REDIS_HOST:-user_redis}:${REDIS_PORT:-6379}..."
-until nc -z ${REDIS_HOST:-user_redis} ${REDIS_PORT:-6379}; do
-  sleep 0.5
+while ! nc -z ${REDIS_HOST:-user_redis} ${REDIS_PORT:-6379}; do
+    sleep 0.5
 done
-echo "Redis is available."
+echo "✓ Redis is available"
 
-# Выполняем миграции (без повторного выполнения в CMD)
-echo "Running migrations..."
+# Миграции
+echo "Running database migrations..."
 python manage.py migrate --noinput
+echo "✓ Migrations completed"
 
-# Собираем static (полезно для dev, чтобы staticfiles были в volume)
+# Static files
 echo "Collecting static files..."
 python manage.py collectstatic --noinput || true
+echo "✓ Static files collected"
 
-# Создание суперпользователя (если переменные заданы)
+# Создание суперпользователя (опционально)
 if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
-  echo "Ensure superuser exists..."
-  python - <<PYCODE
+    echo "Creating superuser..."
+    python manage.py shell <<EOF
 from django.contrib.auth import get_user_model
 User = get_user_model()
-username = "${DJANGO_SUPERUSER_USERNAME}"
-email = "${DJANGO_SUPERUSER_EMAIL}"
-password = "${DJANGO_SUPERUSER_PASSWORD}"
+username = "$DJANGO_SUPERUSER_USERNAME"
+email = "$DJANGO_SUPERUSER_EMAIL"
+password = "$DJANGO_SUPERUSER_PASSWORD"
 if not User.objects.filter(username=username).exists():
     User.objects.create_superuser(username, email, password)
-    print("Superuser created.")
+    print("✓ Superuser created successfully")
 else:
-    print("Superuser already exists.")
-PYCODE
+    print("✓ Superuser already exists")
+EOF
 fi
 
-# Передаём управление основной команде контейнера
+echo "=========================================="
+echo "Starting application..."
+echo "=========================================="
+
 exec "$@"

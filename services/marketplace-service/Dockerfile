@@ -1,51 +1,38 @@
-# Stage 1: Builder
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --not-install-recommends \
-    gcc \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Stage 2: Runtime
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
+    build-essential \
+    libpq-dev \
+    curl \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies
-COPY --from=builder /root/.local /root/.local
+COPY requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r /app/requirements.txt
 
-# Make sure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+COPY . /app
 
-# COPY application code
-COPY . .
-
-# Create necessary directories
 RUN mkdir -p /app/logs /app/media /app/staticfiles
 
-# Create non-root user for security
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8002
+EXPOSE 8004
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8002/health/', timeout=5)"
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DJANGO_SETTINGS_MODULE=config.settings
 
-# Run migrations and start server
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8002 --workers 3 --timeout 60"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8004/health/ || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8004", "--workers", "3", "--timeout", "60"]

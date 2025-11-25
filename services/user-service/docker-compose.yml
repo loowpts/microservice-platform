@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-
+  # PostgreSQL Database
   user_db:
     image: postgres:15-alpine
     container_name: user_db
@@ -21,6 +21,7 @@ services:
     networks:
       - user_network
 
+  # Redis Cache
   user_redis:
     image: redis:7-alpine
     container_name: user_redis
@@ -30,7 +31,6 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      # если пароль задан, используем -a ${REDIS_PASSWORD}
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-user_redis_pass}", "PING"]
       interval: 10s
       timeout: 5s
@@ -38,31 +38,33 @@ services:
     networks:
       - user_network
 
+  # User Service Application
   user_service:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: user_service
-    # entrypoint.sh будет запускать миграции и collectstatic; CMD запускает runserver
     volumes:
       - .:/app
       - user_static:/app/staticfiles
       - user_media:/app/media
     ports:
-      - "8001:8001"
+      - "8000:8000"
     env_file:
       - .env
     environment:
-      DJANGO_SETTINGS_MODULE: user_service.settings
-      DB_HOST: user_db
-      DB_PORT: 5432
-      REDIS_HOST: user_redis
-      REDIS_PORT: 6379
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - DB_HOST=user_db
+      - DB_PORT=5432
+      - REDIS_HOST=user_redis
+      - REDIS_PORT=6379
     depends_on:
-      - user_db
-      - user_redis
+      user_db:
+        condition: service_healthy
+      user_redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/health/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,9 +74,13 @@ services:
 
 volumes:
   user_db_data:
+    driver: local
   user_redis_data:
+    driver: local
   user_static:
+    driver: local
   user_media:
+    driver: local
 
 networks:
   user_network:

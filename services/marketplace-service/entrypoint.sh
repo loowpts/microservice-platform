@@ -1,44 +1,53 @@
 #!/bin/bash
-
 set -e
 
-echo "Starting Marketplace Service..."
+echo "=========================================="
+echo "Starting Marketplace Service container..."
+echo "=========================================="
 
-# Wait for database to be ready
-echo "Waiting for PostgreSQL..."
-while ! nc -z ${DB_HOST:-localhost} ${DB_PORT:-5432}; do
-    sleep 0.1
+# Ждём PostgreSQL
+echo "Waiting for PostgreSQL at ${DB_HOST:-marketplace_db}:${DB_PORT:-5432}..."
+while ! nc -z ${DB_HOST:-marketplace_db} ${DB_PORT:-5432}; do
+    sleep 0.5
 done
-echo "PostgreSQL is ready!"
+echo "✓ PostgreSQL is available"
 
-# Wait for Redis is ready
-echo "Waiting for Redis..."
-while ! nc -z ${REDIS_HOST:-localhost} ${REDIS_PORT:-6379}; do
-    sleep 0.1
+# Ждём Redis
+echo "Waiting for Redis at ${REDIS_HOST:-marketplace_redis}:${REDIS_PORT:-6379}..."
+while ! nc -z ${REDIS_HOST:-marketplace_redis} ${REDIS_PORT:-6379}; do
+    sleep 0.5
 done
-echo "Redis is ready!"
+echo "✓ Redis is available"
 
+# Миграции
 echo "Running database migrations..."
 python manage.py migrate --noinput
+echo "✓ Migrations completed"
 
-
+# Static files
 echo "Collecting static files..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput || true
+echo "✓ Static files collected"
 
-# Create superuser if specified
-if [ "$DJANGO_SUPERUSER_USERNAME" ] && [ "$DJANGO_SUPERUSER_EMAIL" ] && [ "$DJANGO_SUPERUSER_PASSWORD" ]; then
+# Создание суперпользователя (опционально)
+if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
     echo "Creating superuser..."
     python manage.py shell <<EOF
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(username='$DJANGO_SUPERUSER_USERNAME').exists():
-    User.objects.create_superuser('$DJANGO_SUPERUSER_USERNAME', '$DJANGO_SUPERUSER_EMAIL', '$DJANGO_SUPERUSER_PASSWORD')
-    print('Superuser created successfully')
+username = "$DJANGO_SUPERUSER_USERNAME"
+email = "$DJANGO_SUPERUSER_EMAIL"
+password = "$DJANGO_SUPERUSER_PASSWORD"
+if not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(username, email, password)
+    print("✓ Superuser created successfully")
 else:
-    print('Superuser already exists')
+    print("✓ Superuser already exists")
 EOF
 fi
 
-# Execute the main command
+echo "=========================================="
 echo "Starting application..."
+echo "=========================================="
+
 exec "$@"
