@@ -13,15 +13,17 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r /app/requirements.txt
 
-COPY . /app
-
-RUN mkdir -p /app/logs /app/media /app/staticfiles
-
+# Копируем и делаем исполняемым entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Копируем остальной код
+COPY . /app
+
+# Создаём non-root пользователя и делаем его владельцем всех файлов
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app
+
 USER appuser
 
 EXPOSE 8004
