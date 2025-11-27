@@ -83,3 +83,5 @@ pip-log.txt
 pip-delete-this-directory.txt
 .tox/
 notes/*
+init-databases.sql
+deploy.sh

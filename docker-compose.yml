@@ -1,0 +1,346 @@
+services:
+  # POSTGRESQL - единая база для всех сервисов
+  postgres:
+    image: postgres:15-alpine
+    container_name: microservices_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices_network
+
+  # REDIS - кеширование и очереди
+  redis:
+    image: redis:7-alpine
+    container_name: microservices_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices_network
+
+  # API GATEWAY
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - USER_SERVICE_URL=http://user-service:8000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8001
+      - FREELANCE_SERVICE_URL=http://freelance-service:8002
+      - CONTENT_SERVICE_URL=http://content-service:8003
+      - MARKETPLACE_SERVICE_URL=http://marketplace-service:8004
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # USER SERVICE
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: user_service
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=user_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8001
+      - CONTENT_SERVICE_URL=http://content-service:8003
+      - FREELANCE_SERVICE_URL=http://freelance-service:8002
+      - MARKETPLACE_SERVICE_URL=http://marketplace-service:8004
+      - EMAIL_BACKEND=${EMAIL_BACKEND}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - user_media:/app/media
+      - user_static:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # NOTIFICATION SERVICE
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification_service
+    restart: unless-stopped
+    expose:
+      - "8001"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=notification_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - EMAIL_BACKEND=${EMAIL_BACKEND}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker для уведомлений
+  notification-celery:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification_celery
+    restart: unless-stopped
+    command: celery -A config worker -l info --concurrency=2
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=notification_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - EMAIL_BACKEND=${EMAIL_BACKEND}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
+    networks:
+      - microservices_network
+
+  # FREELANCE SERVICE
+  freelance-service:
+    build:
+      context: ./services/freelance-service
+      dockerfile: Dockerfile
+    container_name: freelance_service
+    restart: unless-stopped
+    expose:
+      - "8002"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=freelance_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
+      - USER_SERVICE_URL=http://user-service:8000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8001
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - freelance_media:/app/media
+      - freelance_static:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # CONTENT SERVICE
+  content-service:
+    build:
+      context: ./services/content-service
+      dockerfile: Dockerfile
+    container_name: content_service
+    restart: unless-stopped
+    expose:
+      - "8003"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=content_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
+      - USER_SERVICE_URL=http://user-service:8000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8001
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - content_media:/app/media
+      - content_static:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MARKETPLACE SERVICE
+  marketplace-service:
+    build:
+      context: ./services/marketplace-service
+      dockerfile: Dockerfile
+    container_name: marketplace_service
+    restart: unless-stopped
+    expose:
+      - "8004"
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_ENGINE=postgresql
+      - DB_HOST=postgres
+      - DB_NAME=marketplace_db
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=5432
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/5
+      - USER_SERVICE_URL=http://user-service:8000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8001
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - marketplace_media:/app/media
+      - marketplace_static:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# VOLUMES
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  user_media:
+    driver: local
+  user_static:
+    driver: local
+  freelance_media:
+    driver: local
+  freelance_static:
+    driver: local
+  content_media:
+    driver: local
+  content_static:
+    driver: local
+  marketplace_media:
+    driver: local
+  marketplace_static:
+    driver: local
+
+# NETWORKS
+networks:
+  microservices_network:
+    driver: bridge
