@@ -29,6 +29,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'apps.users',
+    'apps.common',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -43,7 +44,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+    
+    # Custom JWT Authentication Middleware
+    'apps.common.middleware.JWTAuthenticationMiddleware',
+    'apps.common.middleware.RequireAuthenticationMiddleware',
 
 ROOT_URLCONF = 'config.urls'
 
@@ -273,6 +277,11 @@ LOGGING = {
             'propagate': False,
         },
         'apps.users': {
+            'handlers': ['console', 'file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'apps.common': {
             'handlers': ['console', 'file'],
             'level': LOG_LEVEL,
             'propagate': False,
