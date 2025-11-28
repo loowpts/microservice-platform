@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Redis Cache для API Gateway
+  gateway_redis:
+    image: redis:7-alpine
+    container_name: gateway_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-gateway_redis_pass}
+    volumes:
+      - gateway_redis_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-gateway_redis_pass}", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway_network
+
+  # API Gateway Application
+  api_gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    volumes:
+      - .:/app
+      - gateway_static:/app/staticfiles
+      - gateway_logs:/app/logs
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - REDIS_HOST=gateway_redis
+      - REDIS_PORT=6379
+      # URLs микросервисов (для локального тестирования)
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-http://localhost:8000}
+      - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL:-http://localhost:8001}
+      - FREELANCE_SERVICE_URL=${FREELANCE_SERVICE_URL:-http://localhost:8002}
+      - CONTENT_SERVICE_URL=${CONTENT_SERVICE_URL:-http://localhost:8003}
+      - MARKETPLACE_SERVICE_URL=${MARKETPLACE_SERVICE_URL:-http://localhost:8004}
+    depends_on:
+      gateway_redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/health/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - gateway_network
+
+volumes:
+  gateway_redis_data:
+    driver: local
+  gateway_static:
+    driver: local
+  gateway_logs:
+    driver: local
+
+networks:
+  gateway_network:
+    driver: bridge
