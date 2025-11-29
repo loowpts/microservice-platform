@@ -52,6 +52,8 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
@@ -93,6 +95,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
       - CONTENT_SERVICE_URL=http://content-service:8003
@@ -141,6 +145,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -183,6 +189,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -220,6 +228,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -251,6 +261,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
@@ -290,6 +302,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
@@ -329,6 +343,8 @@ services:
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/5
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001

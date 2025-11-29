@@ -48,6 +48,7 @@ MIDDLEWARE = [
     # Custom JWT Authentication Middleware
     'apps.common.middleware.JWTAuthenticationMiddleware',
     'apps.common.middleware.RequireAuthenticationMiddleware',
+]
 
 ROOT_URLCONF = 'config.urls'
 
@@ -69,7 +70,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-DATABASE_ENGINE = os.getenv('DATABASE_ENGINE', 'sqlite3')
+DATABASE_ENGINE = os.getenv('DB_ENGINE', 'sqlite3')
 
 if DATABASE_ENGINE == 'postgresql':
     DATABASES = {

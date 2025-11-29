@@ -14,20 +14,18 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r /app/requirements.txt
 
-# Копируем и делаем исполняемым entrypoint
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
 # Копируем остальной код
 COPY . /app
 
-# Создаём non-root пользователя и делаем его владельцем всех файлов
-RUN useradd -m -u 1000 appuser \
+# Создаём non-root пользователя
+RUN useradd -m -u 1000 appuser
+
+# Настраиваем права на entrypoint и назначаем владельца всех файлов
+RUN chmod +x /app/entrypoint.sh \
     && chown -R appuser:appuser /app
 
 USER appuser
 
-# I don't remember which ports I assigned to applications (update ports)
 EXPOSE 8002
 
 ENV PYTHONUNBUFFERED=1 \
@@ -39,5 +37,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENTRYPOINT [ "/app/entrypoint.sh" ]
 
-# change ports
-CMD [ "gunicorn", 'config.wsgi:application', '--bind', "0.0.0.0:8002", '--workers', "3", "--timeout", "60" ]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8002", "--workers", "3", "--timeout", "60"]

@@ -20,6 +20,9 @@ from apps.common.decorators import (
 
 logger = logging.getLogger(__name__)
 
+def health_check(request):
+    """Health check endpoint"""
+    return JsonResponse({'status': 'healthy', 'service': 'user-service'})
 
 @public_endpoint
 def create_user(request):
