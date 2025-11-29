@@ -85,3 +85,4 @@ pip-delete-this-directory.txt
 notes/*
 init-databases.sql
 deploy.sh
+frontend/
