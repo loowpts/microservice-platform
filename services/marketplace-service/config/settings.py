@@ -87,16 +87,10 @@ if DATABASE_ENGINE == 'postgresql':
         }
     }
 else:
-    db_path = os.getenv('SQLITE_DB_PATH', '/app/db/db.sqlite3')
-    # Создаем директорию если её нет
-    db_dir = os.path.dirname(db_path)
-    if not os.path.exists(db_dir):
-        os.makedirs(db_dir, exist_ok=True)
-
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': db_path,
+            'NAME': os.getenv('SQLITE_DB_PATH', '/app/db/db.sqlite3'),
         }
     }
 
