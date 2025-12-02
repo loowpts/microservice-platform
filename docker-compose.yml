@@ -1,25 +1,25 @@
 services:
-  # POSTGRESQL - единая база для всех сервисов
-  postgres:
-    image: postgres:15-alpine
-    container_name: microservices_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - microservices_network
+  # POSTGRESQL - единая база для всех сервисов (ЗАКОММЕНТИРОВАНО - ИСПОЛЬЗУЕМ SQLITE)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: microservices_postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     POSTGRES_DB: postgres
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - microservices_network
 
   # REDIS - кеширование и очереди
   redis:
@@ -89,12 +89,8 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=user_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/user_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
@@ -113,9 +109,8 @@ services:
     volumes:
       - user_media:/app/media
       - user_static:/app/staticfiles
+      - user_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -139,12 +134,8 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=notification_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/notification_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -158,9 +149,9 @@ services:
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+    volumes:
+      - notification_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -183,12 +174,8 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=notification_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/notification_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -201,9 +188,9 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+    volumes:
+      - notification_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       notification-service:
@@ -222,20 +209,16 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=notification_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/notification_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
+    volumes:
+      - notification_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       notification-service:
@@ -255,12 +238,8 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=freelance_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/freelance_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
@@ -270,9 +249,8 @@ services:
     volumes:
       - freelance_media:/app/media
       - freelance_static:/app/staticfiles
+      - freelance_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -296,12 +274,8 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=content_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/content_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
@@ -311,9 +285,8 @@ services:
     volumes:
       - content_media:/app/media
       - content_static:/app/staticfiles
+      - content_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -337,12 +310,8 @@ services:
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=postgresql
-      - DB_HOST=postgres
-      - DB_NAME=marketplace_db
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_PORT=5432
+      - DB_ENGINE=sqlite
+      - SQLITE_DB_PATH=/app/db/marketplace_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/5
@@ -352,9 +321,8 @@ services:
     volumes:
       - marketplace_media:/app/media
       - marketplace_static:/app/staticfiles
+      - marketplace_db:/app/db
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -400,17 +368,27 @@ volumes:
     driver: local
   user_static:
     driver: local
+  user_db:
+    driver: local
+  notification_db:
+    driver: local
   freelance_media:
     driver: local
   freelance_static:
+    driver: local
+  freelance_db:
     driver: local
   content_media:
     driver: local
   content_static:
     driver: local
+  content_db:
+    driver: local
   marketplace_media:
     driver: local
   marketplace_static:
+    driver: local
+  marketplace_db:
     driver: local
 
 # NETWORKS
