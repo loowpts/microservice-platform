@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from apps.common.notifications import send_notification
 from django.contrib.auth.decorators import login_required
 from apps.common.decorators import (
@@ -24,6 +25,7 @@ def health_check(request):
     """Health check endpoint"""
     return JsonResponse({'status': 'healthy', 'service': 'user-service'})
 
+@csrf_exempt
 @public_endpoint
 def create_user(request):
     """
@@ -99,6 +101,7 @@ def get_profile(request):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+@csrf_exempt
 @public_endpoint
 def get_profile_detail(request, pk):
     """
@@ -248,6 +251,7 @@ def set_role(request):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+@csrf_exempt
 @public_endpoint
 @require_http_methods(['POST'])
 def login(request):
@@ -263,17 +267,22 @@ def login(request):
             'error': 'Invalid JSON'
         }, status=400)
     
+    # Поддержка как email, так и username
     email = data.get('email')
+    username = data.get('username')
     password = data.get('password')
-    
-    if not email or not password:
+
+    # Используем email или username (что было передано)
+    login_field = email or username
+
+    if not login_field or not password:
         return JsonResponse({
             'success': False,
             'error': 'Все поля обязательны для заполнения.'
         }, status=400)
-    
-    email = email.lower().strip()
-    user = authenticate(request, username=email, password=password)
+
+    login_field = login_field.lower().strip()
+    user = authenticate(request, username=login_field, password=password)
     
     if user is None:
         logger.warning(f"Failed login attempt for email: {email}")
@@ -353,6 +362,7 @@ def logout(request):
         }, status=400)
 
 
+@csrf_exempt
 @public_endpoint
 @require_http_methods(['POST'])
 def refresh_token(request):
