@@ -9,7 +9,6 @@ echo "=========================================="
 if [ "$DB_ENGINE" = "sqlite" ]; then
     echo "Creating database directory..."
     mkdir -p /app/db
-    chmod 755 /app/db
     echo "✓ Database directory ready"
 fi
 
