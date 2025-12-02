@@ -17,14 +17,8 @@ RUN pip install --upgrade pip \
 # Копируем остальной код
 COPY . /app
 
-# Создаём non-root пользователя
-RUN useradd -m -u 1000 appuser
-
-# Настраиваем права на entrypoint и назначаем владельца всех файлов
-RUN chmod +x /app/entrypoint.sh \
-    && chown -R appuser:appuser /app
-
-USER appuser
+# Настраиваем права на entrypoint
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8002
 

@@ -26,11 +26,6 @@ RUN mkdir -p /app/logs /app/media /app/staticfiles
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Создаём non-root пользователя и назначаем владельца файлов
-RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app
-USER appuser
-
 EXPOSE 8000
 
 # Переменные окружения

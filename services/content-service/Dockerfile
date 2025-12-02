@@ -20,12 +20,6 @@ RUN chmod +x /app/entrypoint.sh
 # Копируем остальной код
 COPY . /app
 
-# Создаём non-root пользователя и делаем его владельцем всех файлов
-RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app
-
-USER appuser
-
 EXPOSE 8003
 
 ENV PYTHONUNBUFFERED=1 \

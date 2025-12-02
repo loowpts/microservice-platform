@@ -7,7 +7,6 @@ echo "=========================================="
 
 echo "Creating directories..."
 mkdir -p /app/staticfiles
-chmod -R 777 /app/staticfiles
 echo "✓ Directories created"
 
 echo "Waiting for Redis..."
