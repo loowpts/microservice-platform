@@ -90,7 +90,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/user_service.db
+      - SQLITE_DB_PATH=/app/db/user.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
@@ -109,7 +109,7 @@ services:
     volumes:
       - user_media:/app/media
       - user_static:/app/staticfiles
-      - user_db:/app/db
+      - user_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -135,7 +135,7 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/notification_service.db
+      - SQLITE_DB_PATH=/app/db/notification.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -150,7 +150,7 @@ services:
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
     volumes:
-      - notification_db:/app/db
+      - notification_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -175,7 +175,7 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/notification_service.db
+      - SQLITE_DB_PATH=/app/db/notification.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
@@ -189,7 +189,7 @@ services:
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
     volumes:
-      - notification_db:/app/db
+      - notification_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -210,14 +210,14 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/notification_service.db
+      - SQLITE_DB_PATH=/app/databases/notification.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/2
     volumes:
-      - notification_db:/app/db
+      - notification_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -239,7 +239,7 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/freelance_service.db
+      - SQLITE_DB_PATH=/app/databases/freelance.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
@@ -249,7 +249,7 @@ services:
     volumes:
       - freelance_media:/app/media
       - freelance_static:/app/staticfiles
-      - freelance_db:/app/db
+      - freelance_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -275,7 +275,7 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/content_service.db
+      - SQLITE_DB_PATH=/app/databases/content.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
@@ -285,7 +285,7 @@ services:
     volumes:
       - content_media:/app/media
       - content_static:/app/staticfiles
-      - content_db:/app/db
+      - content_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -311,7 +311,7 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - DB_ENGINE=sqlite
-      - SQLITE_DB_PATH=/app/db/marketplace_service.db
+      - SQLITE_DB_PATH=/app/databases/marketplace_service.db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/5
@@ -321,7 +321,7 @@ services:
     volumes:
       - marketplace_media:/app/media
       - marketplace_static:/app/staticfiles
-      - marketplace_db:/app/db
+      - marketplace_db:/app/databases
     depends_on:
       redis:
         condition: service_healthy
@@ -356,8 +356,6 @@ services:
 
 # VOLUMES
 volumes:
-  postgres_data:
-    driver: local
   redis_data:
     driver: local
   gateway_static:

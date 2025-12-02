@@ -6,20 +6,20 @@ echo "Starting Marketplace Service container..."
 echo "=========================================="
 
 # Создание директории для базы данных SQLite
-if [ "$DB_ENGINE" = "sqlite" ]; then
-    echo "Creating database directory..."
-    mkdir -p /app/db
-    echo "✓ Database directory ready"
-fi
+# if [ "$DB_ENGINE" = "sqlite" ]; then
+#     echo "Creating database directory..."
+#     mkdir -p /app/db
+#     echo "✓ Database directory ready"
+# fi
 
-# Ждём PostgreSQL (только если используется PostgreSQL)
-if [ "$DB_ENGINE" = "postgresql" ]; then
-    echo "Waiting for PostgreSQL at ${DB_HOST:-marketplace_db}:${DB_PORT:-5432}..."
-    while ! nc -z ${DB_HOST:-marketplace_db} ${DB_PORT:-5432}; do
-        sleep 0.5
-    done
-    echo "✓ PostgreSQL is available"
-fi
+# # Ждём PostgreSQL (только если используется PostgreSQL)
+# if [ "$DB_ENGINE" = "postgresql" ]; then
+#     echo "Waiting for PostgreSQL at ${DB_HOST:-marketplace_db}:${DB_PORT:-5432}..."
+#     while ! nc -z ${DB_HOST:-marketplace_db} ${DB_PORT:-5432}; do
+#         sleep 0.5
+#     done
+#     echo "✓ PostgreSQL is available"
+# fi
 
 # Ждём Redis
 echo "Waiting for Redis at ${REDIS_HOST:-marketplace_redis}:${REDIS_PORT:-6379}..."
