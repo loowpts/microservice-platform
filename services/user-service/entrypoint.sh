@@ -5,12 +5,22 @@ echo "=========================================="
 echo "Starting User Service container..."
 echo "=========================================="
 
-# Ждём PostgreSQL
-echo "Waiting for PostgreSQL at ${DB_HOST:-user_db}:${DB_PORT:-5432}..."
-while ! nc -z ${DB_HOST:-user_db} ${DB_PORT:-5432}; do
-    sleep 0.5
-done
-echo "✓ PostgreSQL is available"
+# Создание директории для базы данных SQLite
+if [ "$DB_ENGINE" = "sqlite" ]; then
+    echo "Creating database directory..."
+    mkdir -p /app/db
+    chmod 755 /app/db
+    echo "✓ Database directory ready"
+fi
+
+# Ждём PostgreSQL (только если используется PostgreSQL)
+if [ "$DB_ENGINE" = "postgresql" ]; then
+    echo "Waiting for PostgreSQL at ${DB_HOST:-user_db}:${DB_PORT:-5432}..."
+    while ! nc -z ${DB_HOST:-user_db} ${DB_PORT:-5432}; do
+        sleep 0.5
+    done
+    echo "✓ PostgreSQL is available"
+fi
 
 # Ждём Redis
 echo "Waiting for Redis at ${REDIS_HOST:-user_redis}:${REDIS_PORT:-6379}..."
