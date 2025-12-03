@@ -6,8 +6,14 @@ echo "Starting Content Service"
 echo "=========================================="
 
 echo "Creating directories..."
-mkdir -p /app/databases /app/staticfiles /app/media
+mkdir -p /app/staticfiles /app/media
 echo "✓ Directories created"
+
+echo "Waiting for PostgreSQL..."
+while ! nc -z ${POSTGRES_HOST:-postgres} ${POSTGRES_PORT:-5432}; do
+    sleep 0.5
+done
+echo "✓ PostgreSQL is ready"
 
 echo "Waiting for Redis..."
 while ! nc -z ${REDIS_HOST:-redis} ${REDIS_PORT:-6379}; do

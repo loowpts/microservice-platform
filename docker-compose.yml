@@ -1,4 +1,26 @@
 services:
+  # POSTGRESQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: microservices_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices_network
+
   # REDIS
   redis:
     image: redis:7-alpine
@@ -65,15 +87,21 @@ services:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-jwt-secret}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${USER_DB_NAME:-user_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/1
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
     volumes:
-      - user_data:/app/databases
       - user_media:/app/media
       - user_static:/app/staticfiles
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -97,15 +125,21 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${NOTIFICATION_DB_NAME:-notification_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/3
       - CELERY_BROKER_URL=redis://redis:6379/3
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
     volumes:
-      - notification_data:/app/databases
       - notification_static:/app/staticfiles
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -128,18 +162,23 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${NOTIFICATION_DB_NAME:-notification_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/3
       - CELERY_BROKER_URL=redis://redis:6379/3
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
-    volumes:
-      - notification_data:/app/databases
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       notification-service:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices_network
 
@@ -154,18 +193,23 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${NOTIFICATION_DB_NAME:-notification_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/3
       - CELERY_BROKER_URL=redis://redis:6379/3
       - CELERY_RESULT_BACKEND=redis://redis:6379/3
-    volumes:
-      - notification_data:/app/databases
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       notification-service:
-        condition: service_started
+        condition: service_healthy
     networks:
       - microservices_network
 
@@ -181,16 +225,22 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${FREELANCE_DB_NAME:-freelance_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/4
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
     volumes:
-      - freelance_data:/app/databases
       - freelance_media:/app/media
       - freelance_static:/app/staticfiles
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -214,16 +264,22 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${CONTENT_DB_NAME:-content_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/2
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
     volumes:
-      - content_data:/app/databases
       - content_media:/app/media
       - content_static:/app/staticfiles
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -247,16 +303,22 @@ services:
     environment:
       - DEBUG=${DEBUG:-True}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${MARKETPLACE_DB_NAME:-marketplace_service_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_URL=redis://redis:6379/5
       - USER_SERVICE_URL=http://user-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8001
     volumes:
-      - marketplace_data:/app/databases
       - marketplace_media:/app/media
       - marketplace_static:/app/staticfiles
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -283,20 +345,16 @@ services:
       - microservices_network
 
 volumes:
+  postgres_data:
   redis_data:
   gateway_static:
-  user_data:
   user_media:
   user_static:
-  notification_data:
   notification_static:
-  freelance_data:
   freelance_media:
   freelance_static:
-  content_data:
   content_media:
   content_static:
-  marketplace_data:
   marketplace_media:
   marketplace_static:
 

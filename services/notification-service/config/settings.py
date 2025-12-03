@@ -58,8 +58,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'databases' / 'notification.db',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB', 'notification_service_db'),
+        'USER': os.getenv('POSTGRES_USER', 'postgres'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres'),
+        'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
 }
 
@@ -149,5 +156,4 @@ LOGGING = {
     },
 }
 
-(BASE_DIR / 'databases').mkdir(exist_ok=True, parents=True)
 (BASE_DIR / 'staticfiles').mkdir(exist_ok=True, parents=True)
