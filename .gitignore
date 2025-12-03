@@ -87,3 +87,4 @@ init-databases.sql
 deploy.sh
 frontend/
 start.sh
+package-lock.json
