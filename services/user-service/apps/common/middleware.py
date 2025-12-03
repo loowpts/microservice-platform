@@ -18,18 +18,23 @@ class JWTAuthenticationMiddleware:
         '/api/users/',
         '/api/auth/login/',
         '/api/auth/refresh/',
-        '/admin/',
+        '/admin/',  # Админка использует стандартную сессионную аутентификацию
+        '/static/',
+        '/media/',
     ]
     
     def __init__(self, get_response):
         self.get_response = get_response
         
     def __call__(self, request):
-        # Прверяем, нужна ли аутентификация для этого пути
+        # Для публичных путей не трогаем request.user
+        # Позволяем Django стандартной аутентификации работать для /admin/
         if self._is_public_path(request.path):
-            request.user = None
-            request.authenticated = False
+            # НЕ устанавливаем request.user = None для /admin/
+            if not request.path.startswith('/admin/'):
+                request.authenticated = False
             return self.get_response(request)
+        
         # Извлекаем токен из заголовка
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
         
@@ -80,6 +85,7 @@ class JWTAuthenticationMiddleware:
     def _is_public_path(self, path):
         return any(path.startswith(public_path) for public_path in self.PUBLIC_PATHS)
 
+
 class RequireAuthenticationMiddleware:
     """
     Middleware для принудительной проверки аутентификации
@@ -91,20 +97,29 @@ class RequireAuthenticationMiddleware:
         '/api/profile/update/',
         '/api/users/',  # кроме POST (регистрация)
         '/api/set-role/',
-        '/api/auth/logout/',
-        '/api/auth/verify/',
+        '/api/auth/logout/',  # logout требует аутентификации
+        '/api/auth/verify/',  # verify требует аутентификации
+        # НЕ ДОБАВЛЯЙТЕ СЮДА /api/auth/login/ !!!
     ]
     
     # Методы, которые требуют аутентификации для определенных путей
     PROTECTED_METHODS = {
         '/api/profile/': ['PUT', 'DELETE'],
-        '/api/users/': ['GET', 'PUT', 'DELETE'],
+        '/api/users/': ['GET', 'PUT', 'DELETE'],  # POST (регистрация) не требует
     }
     
     def __init__(self, get_response):
         self.get_response = get_response
     
     def __call__(self, request):
+        # Пропускаем проверку для админки
+        if request.path.startswith('/admin/'):
+            return self.get_response(request)
+        
+        # Пропускаем проверку для статики
+        if request.path.startswith(('/static/', '/media/')):
+            return self.get_response(request)
+        
         # Проверяем, требует ли этот путь аутентификации
         if self._requires_authentication(request):
             if not getattr(request, 'authenticated', False):

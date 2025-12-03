@@ -14,7 +14,7 @@ logger = logging.getLogger('gateway')
 def proxy_request(request):
     """Универсальный прокси для всех запросов к микросервисам"""
     
-    service_url = get_service_url(request.path)
+    service_url, route_prefix = get_service_url(request.path)
     
     if not service_url:
         return JsonResponse({
@@ -25,8 +25,11 @@ def proxy_request(request):
     target_url = build_target_url(
         service_url,
         request.path,
+        route_prefix,
         request.GET.dict() if request.GET else None
     )
+    
+    logger.info(f'Proxying {request.method} {request.path} -> {target_url}')
     
     headers = prepare_headers(request)
     body = prepare_body(request)
